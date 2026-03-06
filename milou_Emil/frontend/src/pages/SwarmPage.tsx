@@ -24,7 +24,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
     const initial: Record<string, { x: number; y: number }> = {};
     agentStates.forEach(a => { initial[a.id] = { ...kennelPos }; });
     setAgentPositions(initial);
-    
+
     // Deploy after a brief moment
     const t = setTimeout(() => {
       setDeployed(true);
@@ -44,7 +44,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
       const finding = mockFindings[i];
       setFindings(prev => [finding, ...prev]);
       setFindingCount(prev => prev + 1);
-      
+
       // Flash the agent
       setFlashingAgents(prev => new Set(prev).add(finding.agentId));
       setTimeout(() => {
@@ -54,7 +54,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
           return next;
         });
       }, 600);
-      
+
       i++;
     }, 1800);
     return () => clearInterval(interval);
@@ -161,23 +161,22 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                   <div className="absolute w-6 h-6 rounded-full border border-foreground/10" style={{ animation: 'pulse-ring 3s infinite 1s' }} />
                 </>
               )}
-              
+
               {/* Agent circle */}
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] transition-colors duration-300 ${
-                  agent.active ? (isFlashing ? 'bg-critical' : 'bg-foreground') : 'bg-muted-foreground/40'
-                }`}
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] transition-colors duration-300 ${agent.active ? (isFlashing ? 'bg-critical' : 'bg-foreground') : 'bg-muted-foreground/40'
+                  }`}
               >
                 <span className={agent.active ? 'text-primary-foreground' : 'text-muted'}>🐾</span>
               </div>
-              
+
               {/* Finding badge */}
               {isFlashing && (
                 <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-critical text-critical-foreground text-[8px] flex items-center justify-center font-bold" style={{ animation: 'fade-up 0.3s ease-out' }}>
                   +1
                 </div>
               )}
-              
+
               {/* Label */}
               <span className={`mt-1 font-body text-[10px] font-bold whitespace-nowrap ${!agent.active ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                 {agent.name}
@@ -229,9 +228,8 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                 <div className={`w-2 h-2 rounded-full ${f.severity === 'critical' ? 'bg-critical' : f.severity === 'high' ? 'bg-warning' : 'bg-safe'}`} />
                 <span className="font-body text-[10px] font-bold text-foreground">{f.agentName}</span>
               </div>
-              <div className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold font-body uppercase tracking-wider mb-1 ${
-                f.severity === 'critical' ? 'bg-critical/10 text-critical' : f.severity === 'high' ? 'bg-warning/10 text-warning' : 'bg-safe/10 text-safe'
-              }`}>
+              <div className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold font-body uppercase tracking-wider mb-1 ${f.severity === 'critical' ? 'bg-critical/10 text-critical' : f.severity === 'high' ? 'bg-warning/10 text-warning' : 'bg-safe/10 text-safe'
+                }`}>
                 {f.type}
               </div>
               <p className="font-body text-[10px] text-muted-foreground leading-tight">{f.description}</p>
