@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { agents as initialAgents, mockFindings, type Finding, type Agent } from '@/data/mockData';
+import { swarmAgents, type Finding, type Agent } from '@/data/mockData';
+
+const API_BASE = 'http://localhost:8000';
 
 interface SwarmPageProps {
   topic: string;
@@ -11,20 +13,83 @@ interface Trace {
   key: number; age: number;
 }
 
+// Map backend context into Finding[] items
+function contextToFindings(ctx: Record<string, unknown>): Finding[] {
+  const findings: Finding[] = [];
+  let idCounter = 0;
+
+  const docs = (ctx.documents as Array<{ url: string; title: string; text: string }>) || [];
+  for (const doc of docs) {
+    findings.push({
+      id: `doc-${idCounter++}`,
+      agentId: 'scraper',
+      agentName: 'Scraper',
+      type: 'SOURCE FOUND',
+      description: `${doc.title || 'Untitled'} — ${doc.url}`,
+      timestamp: 'just now',
+      severity: 'low',
+    });
+  }
+
+  const claims = (ctx.claims as Array<{ url: string; title: string; claims: string[] }>) || [];
+  for (const group of claims) {
+    for (const claim of group.claims || []) {
+      findings.push({
+        id: `claim-${idCounter++}`,
+        agentId: 'claims',
+        agentName: 'Claims',
+        type: 'CLAIM EXTRACTED',
+        description: claim,
+        timestamp: 'just now',
+        severity: 'medium',
+      });
+    }
+  }
+
+  const narratives = (ctx.narratives as Array<{ theme: string; claims: string[] }>) || [];
+  for (const n of narratives) {
+    findings.push({
+      id: `nar-${idCounter++}`,
+      agentId: 'narrative',
+      agentName: 'Narrative',
+      type: 'NARRATIVE CLUSTER',
+      description: `${n.theme} (${n.claims?.length || 0} claims)`,
+      timestamp: 'just now',
+      severity: 'high',
+    });
+  }
+
+  const graph = ctx.graph as { nodes?: unknown[] } | undefined;
+  if (graph && graph.nodes && graph.nodes.length > 0) {
+    findings.push({
+      id: `graph-${idCounter++}`,
+      agentId: 'graph',
+      agentName: 'Graph',
+      type: 'KNOWLEDGE GRAPH BUILT',
+      description: `Graph constructed with ${graph.nodes.length} nodes`,
+      timestamp: 'just now',
+      severity: 'critical',
+    });
+  }
+
+  return findings;
+}
+
 const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
-  const [agentStates, setAgentStates] = useState<Agent[]>(initialAgents.map(a => ({ ...a, active: true })));
+  const [agentStates, setAgentStates] = useState<Agent[]>(swarmAgents.map(a => ({ ...a, active: true })));
   const [agentPositions, setAgentPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [findings, setFindings] = useState<Finding[]>([]);
-  const [findingCount, setFindingCount] = useState(0);
   const [commLines, setCommLines] = useState<{ from: string; to: string; key: number }[]>([]);
   const [traces, setTraces] = useState<Trace[]>([]);
   const [flashingAgents, setFlashingAgents] = useState<Set<string>>(new Set());
   const [showCompleteBtn, setShowCompleteBtn] = useState(false);
   const [deployed, setDeployed] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<'idle' | 'running' | 'done'>('idle');
   const commKeyRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevFindingCountRef = useRef(0);
 
-  // Initialize positions at kennel
+  // Initialize positions at kennel then deploy
   useEffect(() => {
     const kennelPos = { x: 25, y: 50 };
     const initial: Record<string, { x: number; y: number }> = {};
@@ -33,36 +98,66 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
 
     const t = setTimeout(() => {
       setDeployed(true);
-      const deployed: Record<string, { x: number; y: number }> = {};
-      agentStates.forEach(a => { deployed[a.id] = { x: a.zone.x, y: a.zone.y }; });
-      setAgentPositions(deployed);
+      const deployedPos: Record<string, { x: number; y: number }> = {};
+      agentStates.forEach(a => { deployedPos[a.id] = { x: a.zone.x, y: a.zone.y }; });
+      setAgentPositions(deployedPos);
     }, 500);
     return () => clearTimeout(t);
   }, []);
 
-  // Findings feed
+  // Trigger backend on deploy
   useEffect(() => {
     if (!deployed) return;
-    let i = 0;
+    setBackendStatus('running');
+
+    // Set the topic, then run agents
+    fetch(`${API_BASE}/topic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic }),
+    })
+      .then(() => fetch(`${API_BASE}/run-agents`, { method: 'POST' }))
+      .then(() => setBackendStatus('done'))
+      .catch((err) => {
+        console.error('Backend error:', err);
+        setBackendStatus('done');
+      });
+  }, [deployed, topic]);
+
+  // Poll backend context for live findings
+  useEffect(() => {
+    if (!deployed) return;
     const interval = setInterval(() => {
-      if (i >= mockFindings.length) { clearInterval(interval); return; }
-      const finding = mockFindings[i];
-      setFindings(prev => [finding, ...prev]);
-      setFindingCount(prev => prev + 1);
+      fetch(`${API_BASE}/context`)
+        .then(res => res.json())
+        .then((ctx) => {
+          const newFindings = contextToFindings(ctx);
+          setFindings(newFindings);
 
-      setFlashingAgents(prev => new Set(prev).add(finding.agentId));
-      setTimeout(() => {
-        setFlashingAgents(prev => {
-          const next = new Set(prev);
-          next.delete(finding.agentId);
-          return next;
-        });
-      }, 600);
+          // Flash agents that have new findings
+          if (newFindings.length > prevFindingCountRef.current) {
+            const newOnes = newFindings.slice(0, newFindings.length - prevFindingCountRef.current);
+            const agentIds = new Set(newOnes.map(f => f.agentId));
+            setFlashingAgents(agentIds);
+            setTimeout(() => setFlashingAgents(new Set()), 600);
+          }
+          prevFindingCountRef.current = newFindings.length;
 
-      i++;
-    }, 1800);
+          // Show complete button once we have graph data or agents are done
+          if (ctx.graph && (ctx.graph as { nodes?: unknown[] }).nodes?.length) {
+            setShowCompleteBtn(true);
+          }
+        })
+        .catch(() => { /* backend not ready yet */ });
+    }, 1500);
     return () => clearInterval(interval);
   }, [deployed]);
+
+  // Also show complete btn after 60s as fallback
+  useEffect(() => {
+    const t = setTimeout(() => setShowCompleteBtn(true), 60000);
+    return () => clearTimeout(t);
+  }, []);
 
   // HIGH-FREQUENCY communication lines + traces
   useEffect(() => {
@@ -71,7 +166,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
       const activeAgents = agentStates.filter(a => a.active);
       if (activeAgents.length < 2) return;
 
-      // Fire 2-3 connections at once for higher density
       const burstCount = Math.floor(Math.random() * 2) + 2;
       for (let b = 0; b < burstCount; b++) {
         const a1 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
@@ -83,8 +177,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
         const toPos = agentPositions[a2.id] || { x: 25, y: 50 };
 
         setCommLines(prev => [...prev, { from: a1.id, to: a2.id, key }]);
-
-        // Add a trace that lingers
         setTraces(prev => [...prev, {
           fromX: fromPos.x, fromY: fromPos.y,
           toX: toPos.x, toY: toPos.y,
@@ -95,27 +187,19 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
           setCommLines(prev => prev.filter(l => l.key !== key));
         }, 1000);
       }
-    }, 350); // Much higher frequency
+    }, 350);
 
     return () => clearInterval(interval);
   }, [deployed, agentStates, agentPositions]);
 
-  // Fade out traces over time
+  // Fade out traces
   useEffect(() => {
     const interval = setInterval(() => {
       setTraces(prev =>
-        prev
-          .map(t => ({ ...t, age: t.age + 1 }))
-          .filter(t => t.age < 12) // Keep traces for ~6 seconds
+        prev.map(t => ({ ...t, age: t.age + 1 })).filter(t => t.age < 12)
       );
     }, 500);
     return () => clearInterval(interval);
-  }, []);
-
-  // Show complete button after 15s
-  useEffect(() => {
-    const t = setTimeout(() => setShowCompleteBtn(true), 15000);
-    return () => clearTimeout(t);
   }, []);
 
   const toggleAgent = useCallback((id: string) => {
@@ -164,7 +248,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
             opacity: 0.035,
           }}
         >
-          {/* Repeating arrow/chevron pattern flowing diagonally */}
           <defs>
             <pattern id="flow-arrows" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
               <path d="M20 30 L30 20 L40 30" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -178,12 +261,14 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 h-12 bg-foreground/5 backdrop-blur-sm flex items-center px-6 z-20 border-b border-foreground/10">
         <div className="flex items-center gap-2">
-          <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">Shared State:</span>
-          <span className="font-body text-xs font-bold text-foreground">LIVE</span>
-          <span className="w-2 h-2 rounded-full bg-safe animate-pulse" />
+          <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">Backend:</span>
+          <span className={`font-body text-xs font-bold ${backendStatus === 'running' ? 'text-warning' : backendStatus === 'done' ? 'text-safe' : 'text-muted-foreground'}`}>
+            {backendStatus === 'running' ? 'PROCESSING...' : backendStatus === 'done' ? 'COMPLETE' : 'IDLE'}
+          </span>
+          <span className={`w-2 h-2 rounded-full ${backendStatus === 'running' ? 'bg-warning animate-pulse' : 'bg-safe'}`} />
         </div>
         <div className="ml-8 font-body text-xs text-muted-foreground">
-          Findings: <span className="font-bold text-foreground">{findingCount}</span>
+          Findings: <span className="font-bold text-foreground">{findings.length}</span>
         </div>
         <div className="ml-auto font-body text-sm text-muted-foreground">
           Investigating: <span className="font-bold text-foreground italic">"{topic}"</span>
@@ -249,7 +334,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                 zIndex: 5,
               }}
             >
-              {/* Pulse rings */}
               {agent.active && deployed && pos.x !== 25 && (
                 <>
                   <div className="absolute w-6 h-6 rounded-full border border-foreground/20" style={{ animation: 'pulse-ring 3s infinite' }} />
@@ -257,7 +341,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                 </>
               )}
 
-              {/* Agent circle */}
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] transition-colors duration-300 ${agent.active ? (isFlashing ? 'bg-critical' : 'bg-foreground') : 'bg-muted-foreground/40'
                   }`}
@@ -265,20 +348,18 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                 <span className={agent.active ? 'text-primary-foreground' : 'text-muted'}>🐾</span>
               </div>
 
-              {/* Finding badge */}
               {isFlashing && (
                 <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-critical text-critical-foreground text-[8px] flex items-center justify-center font-bold" style={{ animation: 'fade-up 0.3s ease-out' }}>
                   +1
                 </div>
               )}
 
-              {/* Label */}
               <span className={`mt-1 font-body text-[10px] font-bold whitespace-nowrap ${!agent.active ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                 {agent.name}
               </span>
               <span className="font-body text-[8px] text-muted-foreground whitespace-nowrap">{agent.role}</span>
               {!agent.active && (
-                <span className="text-[8px] text-warning font-bold mt-0.5">⚠ offline</span>
+                <span className="text-[8px] text-warning font-bold mt-0.5">offline</span>
               )}
             </div>
           );
@@ -320,7 +401,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
               style={{ animation: 'slide-in-right 0.4s ease-out' }}
             >
               <div className="flex items-center gap-1.5 mb-1">
-                <div className={`w-2 h-2 rounded-full ${f.severity === 'critical' ? 'bg-critical' : f.severity === 'high' ? 'bg-warning' : 'bg-safe'}`} />
+                <div className={`w-2 h-2 rounded-full ${f.severity === 'critical' ? 'bg-critical' : f.severity === 'high' ? 'bg-warning' : f.severity === 'medium' ? 'bg-warning/60' : 'bg-safe'}`} />
                 <span className="font-body text-[10px] font-bold text-foreground">{f.agentName}</span>
               </div>
               <div className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold font-body uppercase tracking-wider mb-1 ${f.severity === 'critical' ? 'bg-critical/10 text-critical' : f.severity === 'high' ? 'bg-warning/10 text-warning' : 'bg-safe/10 text-safe'
@@ -333,7 +414,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
           ))}
           {findings.length === 0 && (
             <div className="text-center py-8 text-muted-foreground font-body text-xs">
-              Deploying agents...
+              {backendStatus === 'running' ? 'Agents working... findings will appear here' : 'Deploying agents...'}
             </div>
           )}
         </div>

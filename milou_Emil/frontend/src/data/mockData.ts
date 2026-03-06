@@ -8,6 +8,15 @@ export interface Agent {
   findings: string[];
 }
 
+// Swarm agents matching the real backend pipeline
+export const swarmAgents: Agent[] = [
+  { id: 'scraper', name: 'Scraper', role: 'Web Search & Scraping', zone: { x: 50, y: 15 }, active: true, score: 0, findings: [] },
+  { id: 'claims', name: 'Claims', role: 'Claim Extraction', zone: { x: 85, y: 50 }, active: true, score: 0, findings: [] },
+  { id: 'narrative', name: 'Narrative', role: 'Narrative Clustering', zone: { x: 50, y: 85 }, active: true, score: 0, findings: [] },
+  { id: 'graph', name: 'Graph', role: 'Knowledge Graph', zone: { x: 15, y: 50 }, active: true, score: 0, findings: [] },
+];
+
+// Legacy agents used by CrimeBoardPage and ResultsPage
 export const agents: Agent[] = [
   { id: 'scout', name: 'Scout', role: 'News Sources', zone: { x: 50, y: 12 }, active: true, score: 82, findings: ['Found 12 articles from unverified news sites', 'breaking-truth-news.com registered 3 days ago', 'rapidinfo24.net has no editorial policy'] },
   { id: 'pixel', name: 'Pixel', role: 'Image Analysis', zone: { x: 80, y: 18 }, active: true, score: 91, findings: ['2 images show AI generation artifacts', 'Reverse image search: 0 prior results', 'EXIF data stripped from all images'] },
