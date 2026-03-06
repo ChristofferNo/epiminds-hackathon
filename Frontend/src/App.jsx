@@ -1,20 +1,31 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import TopicInput from './components/TopicInput'
 import NarrativeList from './components/NarrativeList'
 import GraphView from './components/GraphView'
-import { runScraper, runClaims, runNarratives, runGraph } from './api'
+import { setTopic as apiSetTopic, getContext } from './api'
 
 export default function App() {
   const [topic, setTopic] = useState('')
   const [narratives, setNarratives] = useState([])
+  const pollRef = useRef(null)
 
   async function handleAnalyze(submittedTopic) {
     setTopic(submittedTopic)
     setNarratives([])
-    await runScraper()
-    await runClaims()
-    await runNarratives()
-    await runGraph()
+
+    await apiSetTopic(submittedTopic)
+
+    if (pollRef.current) clearInterval(pollRef.current)
+
+    pollRef.current = setInterval(async () => {
+      const ctx = await getContext()
+      if (ctx.narratives?.length > 0) {
+        setNarratives(ctx.narratives)
+      }
+      if (ctx.graph?.nodes?.length > 0) {
+        clearInterval(pollRef.current)
+      }
+    }, 2000)
   }
 
   return (

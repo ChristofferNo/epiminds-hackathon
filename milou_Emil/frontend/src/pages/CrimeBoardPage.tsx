@@ -7,16 +7,15 @@ interface CrimeBoardPageProps {
   onNext: () => void;
 }
 
-interface DocNode {
+interface NarrativeNode {
   id: string;
-  url: string;
-  title: string;
+  theme: string;
 }
 
 interface ClaimNode {
   id: string;
   text: string;
-  parentSourceId: string;
+  parentNarrativeId: string;
   severity: 'critical' | 'high' | 'safe';
 }
 
@@ -27,52 +26,51 @@ interface GraphEdge {
 
 interface Pos { x: number; y: number }
 
-// Radial layout: topic at center, sources in a ring, claims in outer ring clustered by source
+// Radial layout: topic at center, narratives in a ring, claims in outer ring clustered by narrative
 function computePositions(
-  docs: DocNode[],
+  narratives: NarrativeNode[],
   claims: ClaimNode[]
 ): { topicPos: Pos; sourcePositions: Record<string, Pos>; claimPositions: Record<string, Pos> } {
   const topicPos: Pos = { x: 50, y: 46 };
   const sourcePositions: Record<string, Pos> = {};
   const claimPositions: Record<string, Pos> = {};
 
-  const sourceRadius = 22; // % from center
+  const narrativeRadius = 22; // % from center
   const claimRadius = 40;
 
-  // Distribute sources radially around center
-  docs.forEach((doc, i) => {
-    const angle = (i / Math.max(docs.length, 1)) * Math.PI * 2 - Math.PI / 2;
-    sourcePositions[doc.id] = {
-      x: topicPos.x + Math.cos(angle) * sourceRadius,
-      y: topicPos.y + Math.sin(angle) * (sourceRadius * 0.7), // squash Y for wider layout
+  // Distribute narratives radially around center
+  narratives.forEach((nar, i) => {
+    const angle = (i / Math.max(narratives.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    sourcePositions[nar.id] = {
+      x: topicPos.x + Math.cos(angle) * narrativeRadius,
+      y: topicPos.y + Math.sin(angle) * (narrativeRadius * 0.7),
     };
   });
 
-  // Group claims by source, place them in a fan around their parent
-  const claimsBySource: Record<string, ClaimNode[]> = {};
+  // Group claims by narrative, place them in a fan around their parent
+  const claimsByNarrative: Record<string, ClaimNode[]> = {};
   for (const c of claims) {
-    if (!claimsBySource[c.parentSourceId]) claimsBySource[c.parentSourceId] = [];
-    claimsBySource[c.parentSourceId].push(c);
+    if (!claimsByNarrative[c.parentNarrativeId]) claimsByNarrative[c.parentNarrativeId] = [];
+    claimsByNarrative[c.parentNarrativeId].push(c);
   }
 
-  docs.forEach((doc) => {
-    const srcPos = sourcePositions[doc.id];
-    if (!srcPos) return;
-    const docClaims = claimsBySource[doc.id] || [];
-    // Direction vector from center to source
-    const dx = srcPos.x - topicPos.x;
-    const dy = srcPos.y - topicPos.y;
+  narratives.forEach((nar) => {
+    const narPos = sourcePositions[nar.id];
+    if (!narPos) return;
+    const narClaims = claimsByNarrative[nar.id] || [];
+    const dx = narPos.x - topicPos.x;
+    const dy = narPos.y - topicPos.y;
     const baseAngle = Math.atan2(dy, dx);
 
-    docClaims.forEach((claim, ci) => {
-      const fanSpread = Math.min(0.8, docClaims.length * 0.15);
-      const offsetAngle = docClaims.length > 1
-        ? baseAngle + (ci / (docClaims.length - 1) - 0.5) * fanSpread
+    narClaims.forEach((claim, ci) => {
+      const fanSpread = narClaims.length <= 1 ? 0 : Math.min(Math.PI * 1.2, narClaims.length * 0.22);
+      const offsetAngle = narClaims.length > 1
+        ? baseAngle + (ci / (narClaims.length - 1) - 0.5) * fanSpread
         : baseAngle;
-      const r = claimRadius + (ci % 2) * 4; // stagger depth slightly
+      const r = claimRadius + Math.floor(ci / 2) * 6;
       claimPositions[claim.id] = {
-        x: Math.max(4, Math.min(96, topicPos.x + Math.cos(offsetAngle) * r)),
-        y: Math.max(8, Math.min(92, topicPos.y + Math.sin(offsetAngle) * (r * 0.65))),
+        x: Math.max(3, Math.min(97, topicPos.x + Math.cos(offsetAngle) * r)),
+        y: Math.max(6, Math.min(94, topicPos.y + Math.sin(offsetAngle) * (r * 0.65))),
       };
     });
   });
@@ -98,13 +96,13 @@ function findCorrelations(
   for (const group of Object.values(textMap)) {
     for (let i = 0; i < group.length; i++) {
       for (let j = i + 1; j < group.length; j++) {
-        if (group[i].parentSourceId !== group[j].parentSourceId) {
+        if (group[i].parentNarrativeId !== group[j].parentNarrativeId) {
           const k = [group[i].id, group[j].id].sort().join('-');
           if (!seen.has(k)) {
             seen.add(k);
             correlations.push({
               claimA: group[i].id, claimB: group[j].id,
-              sourceA: group[i].parentSourceId, sourceB: group[j].parentSourceId,
+              sourceA: group[i].parentNarrativeId, sourceB: group[j].parentNarrativeId,
             });
           }
         }
@@ -116,13 +114,13 @@ function findCorrelations(
   for (const edge of graphEdges) {
     const a = claims.find(c => c.id === edge.source);
     const b = claims.find(c => c.id === edge.target);
-    if (a && b && a.parentSourceId !== b.parentSourceId) {
+    if (a && b && a.parentNarrativeId !== b.parentNarrativeId) {
       const k = [a.id, b.id].sort().join('-');
       if (!seen.has(k)) {
         seen.add(k);
         correlations.push({
           claimA: a.id, claimB: b.id,
-          sourceA: a.parentSourceId, sourceB: b.parentSourceId,
+          sourceA: a.parentNarrativeId, sourceB: b.parentNarrativeId,
         });
       }
     }
@@ -150,7 +148,7 @@ function severityBgClass(s: string): string {
 }
 
 const CrimeBoardPage = ({ topic, onNext }: CrimeBoardPageProps) => {
-  const [docs, setDocs] = useState<DocNode[]>([]);
+  const [docs, setDocs] = useState<NarrativeNode[]>([]);
   const [claims, setClaims] = useState<ClaimNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<GraphEdge[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,25 +169,22 @@ const CrimeBoardPage = ({ topic, onNext }: CrimeBoardPageProps) => {
     fetch(`${API_BASE}/context`)
       .then(res => res.json())
       .then((ctx) => {
-        const documents = (ctx.documents || []) as Array<{ url: string; title: string; text: string }>;
-        const docNodes: DocNode[] = documents.map((d, i) => ({
-          id: `source_${i}`,
-          url: d.url,
-          title: d.title || `Source ${i + 1}`,
+        const narrativeGroups = (ctx.narratives || []) as Array<{ theme: string; claims: string[] }>;
+        const narrativeNodes: NarrativeNode[] = narrativeGroups.map((n, i) => ({
+          id: `narrative_${i}`,
+          theme: n.theme,
         }));
-        setDocs(docNodes);
+        setDocs(narrativeNodes);
 
-        const claimGroups = (ctx.claims || []) as Array<{ url: string; title: string; claims: string[] }>;
         const claimNodes: ClaimNode[] = [];
         let claimIdx = 0;
-        for (const group of claimGroups) {
-          const parentDoc = docNodes.find(d => d.url === group.url);
-          const parentId = parentDoc?.id || docNodes[0]?.id || 'source_0';
-          for (const text of (group.claims || [])) {
+        for (let ni = 0; ni < narrativeGroups.length; ni++) {
+          const parentId = `narrative_${ni}`;
+          for (const text of (narrativeGroups[ni].claims || [])) {
             claimNodes.push({
               id: `claim_${claimIdx}`,
               text,
-              parentSourceId: parentId,
+              parentNarrativeId: parentId,
               severity: assignSeverity(text),
             });
             claimIdx++;
@@ -200,7 +195,7 @@ const CrimeBoardPage = ({ topic, onNext }: CrimeBoardPageProps) => {
         const graph = ctx.graph as { edges?: GraphEdge[] } | undefined;
         setGraphEdges(graph?.edges || []);
 
-        if (docNodes.length > 0) setLoading(false);
+        if (narrativeNodes.length > 0) setLoading(false);
       })
       .catch(() => {});
   }, []);
@@ -269,7 +264,7 @@ const CrimeBoardPage = ({ topic, onNext }: CrimeBoardPageProps) => {
       <div className="absolute top-4 left-6 z-30">
         <h2 className="font-display text-2xl font-bold text-foreground">Evidence Board</h2>
         <p className="font-body text-xs text-muted-foreground">
-          Case: "{topic}" — {docs.length} sources, {claims.length} claims
+          Case: "{topic}" — {docs.length} narratives, {claims.length} claims
           {correlations.length > 0 && <span className="text-critical font-bold"> — {correlations.length} cross-source correlation{correlations.length > 1 ? 's' : ''}</span>}
         </p>
       </div>
@@ -304,7 +299,7 @@ const CrimeBoardPage = ({ topic, onNext }: CrimeBoardPageProps) => {
 
         {/* Source → Claim edges */}
         {claims.map((claim, i) => {
-          const from = sourcePositions[claim.parentSourceId];
+          const from = sourcePositions[claim.parentNarrativeId];
           const to = claimPositions[claim.id];
           if (!from || !to) return null;
           const dimmed = hasHighlight && !highlightedNodes.has(claim.id);
@@ -383,7 +378,7 @@ const CrimeBoardPage = ({ topic, onNext }: CrimeBoardPageProps) => {
       >
         <div className="font-body text-[9px] uppercase tracking-[0.25em] opacity-50 mb-1">Subject Under Investigation</div>
         <div className="font-display text-lg font-bold leading-tight">{topic}</div>
-        <div className="font-body text-[9px] opacity-40 mt-2">{docs.length} sources • {claims.length} claims</div>
+        <div className="font-body text-[9px] opacity-40 mt-2">{docs.length} narratives • {claims.length} claims</div>
       </div>
 
       {/* SOURCE nodes — ring around center */}
@@ -405,8 +400,8 @@ const CrimeBoardPage = ({ topic, onNext }: CrimeBoardPageProps) => {
               animation: `fade-up 0.5s ease-out ${0.15 + i * 0.08}s both`,
             }}
           >
-            <div className="font-body text-[8px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-1">Source {i + 1}</div>
-            <div className="font-body text-[11px] font-bold text-foreground leading-tight line-clamp-2">{doc.title}</div>
+            <div className="font-body text-[8px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-1">Narrative</div>
+            <div className="font-body text-[11px] font-bold text-foreground leading-tight line-clamp-2">{doc.theme}</div>
           </div>
         );
       })}

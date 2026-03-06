@@ -24,6 +24,8 @@ Group the following claims into 3-5 narrative themes.
 
 A narrative theme represents a broader storyline or belief.
 
+IMPORTANT: Every single claim listed below must appear in exactly one theme. Do not drop, merge, or omit any claims. Copy each claim verbatim into the appropriate theme.
+
 Claims:
 {claims_text}
 
@@ -47,7 +49,19 @@ Return ONLY a valid JSON object in this exact format, with no markdown or extra 
     raw = raw.strip()
 
     data = json.loads(raw)
-    return data.get("narratives", [])
+    narratives = data.get("narratives", [])
+
+    # Ensure every claim is present — assign any dropped claims to the first narrative
+    assigned = {c for n in narratives for c in n.get("claims", [])}
+    dropped = [c for c in claims if c not in assigned]
+    if dropped:
+        print(f"  Warning: {len(dropped)} claims were dropped by LLM, re-assigning to first narrative")
+        if narratives:
+            narratives[0]["claims"].extend(dropped)
+        else:
+            narratives.append({"theme": "Uncategorized", "claims": dropped})
+
+    return narratives
 
 
 def narrative_agent(context: dict) -> None:

@@ -4,12 +4,8 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from backend.context import shared_context
-from backend.agent_runner import run_agents
-from agents.scraper_agent import scraper_agent
-from agents.claim_agent import claim_agent
-from agents.narrative_agent import narrative_agent
-from agents.graph_agent import graph_agent
+from Backend.context import shared_context
+from Backend.agent_runner import start_agent_threads
 
 app = FastAPI()
 
@@ -19,6 +15,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def startup():
+    start_agent_threads(shared_context)
 
 
 class TopicRequest(BaseModel):
@@ -36,34 +37,10 @@ def get_context():
     return shared_context
 
 
-@app.post("/run-scraper")
-def run_scraper():
-    scraper_agent(shared_context)
-    return shared_context
-
-
-@app.post("/run-claims")
-def run_claims():
-    claim_agent(shared_context)
-    return shared_context
-
-
-@app.post("/run-narratives")
-def run_narratives():
-    narrative_agent(shared_context)
-    return shared_context
-
-
-@app.post("/run-graph")
-def run_graph():
-    graph_agent(shared_context)
-    return shared_context
-
-
 @app.post("/run-agents")
-def run_all_agents():
-    run_agents(shared_context)
-    return shared_context
+def run_agents_compat():
+    # Agents run autonomously as background threads — this endpoint exists for frontend compatibility
+    return {"status": "agents running in background"}
 
 
 @app.post("/reset")
@@ -73,4 +50,6 @@ def reset_context():
     shared_context["claims"] = []
     shared_context["narratives"] = []
     shared_context["graph"] = {}
+    for key in shared_context["agent_status"]:
+        shared_context["agent_status"][key] = "idle"
     return {"status": "reset"}

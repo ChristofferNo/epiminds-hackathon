@@ -3,5 +3,11 @@ shared_context = {
     "documents": [],
     "claims": [],
     "narratives": [],
-    "graph": {}
+    "graph": {},
+    "agent_status": {
+        "scraper": "idle",
+        "claim": "idle",
+        "narrative": "idle",
+        "graph": "idle"
+    }
 }
