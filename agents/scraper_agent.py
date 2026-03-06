@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+from duckduckgo_search import DDGS
 
 
 HEADERS = {
@@ -11,33 +12,22 @@ HEADERS = {
 }
 
 
+BLOCKED_DOMAINS = {"zhihu.com", "twitter.com", "x.com", "facebook.com", "instagram.com", "reddit.com"}
+
+
 def search_duckduckgo(topic: str, max_results: int = 5) -> list[str]:
-    url = f"https://duckduckgo.com/html/?q={requests.utils.quote(topic)}"
-    response = requests.get(url, headers=HEADERS, timeout=10)
-    soup = BeautifulSoup(response.text, "html.parser")
+    with DDGS() as ddgs:
+        results = list(ddgs.news(topic, max_results=max_results * 3))
 
     urls = []
-    for result in soup.select("a.result__url"):
-        href = result.get("href", "")
-        if href.startswith("http"):
-            urls.append(href)
+    for r in results:
+        url = r.get("url") or r.get("href", "")
+        domain = url.split("/")[2] if url.count("/") >= 2 else ""
+        if any(blocked in domain for blocked in BLOCKED_DOMAINS):
+            continue
+        urls.append(url)
         if len(urls) >= max_results:
             break
-
-    # Fallback: try result__a links with uddg param
-    if not urls:
-        for result in soup.select("a.result__a"):
-            href = result.get("href", "")
-            if "uddg=" in href:
-                from urllib.parse import urlparse, parse_qs, unquote
-                parsed = urlparse(href)
-                uddg = parse_qs(parsed.query).get("uddg", [])
-                if uddg:
-                    urls.append(unquote(uddg[0]))
-            elif href.startswith("http"):
-                urls.append(href)
-            if len(urls) >= max_results:
-                break
 
     return urls
 
@@ -80,12 +70,15 @@ def scrape_page(url: str) -> dict:
 
 
 def scraper_agent(context: dict) -> None:
-    topic = context["topic"]
-    if not topic:
-        print("Scraper agent: no topic set, skipping.")
+    if not context["topic"]:
         return
 
-    print(f"\nSearching DuckDuckGo for: {topic}")
+    if any(doc.get("text") for doc in context["documents"]):
+        return
+
+    topic = context["topic"]
+    print(f"\nRunning Scraper Agent")
+    print(f"Searching DuckDuckGo for: {topic}")
 
     urls = search_duckduckgo(topic)
     print(f"Found {len(urls)} results\n")

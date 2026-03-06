@@ -5,7 +5,7 @@ import google.generativeai as genai
 
 load_dotenv()
 
-GEMINI_MODEL = "gemini-3-flash-preview"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 
 def extract_claims_for_document(doc: dict, topic: str) -> dict:
@@ -51,14 +51,16 @@ Return ONLY a valid JSON object in this exact format, with no markdown or extra 
 
 
 def claim_agent(context: dict) -> None:
+    if not context["documents"]:
+        return
+
+    if context["claims"]:
+        return
+
     topic = context["topic"]
     documents = context["documents"]
 
-    if not documents:
-        print("Claim agent: no documents to process, skipping.")
-        return
-
-    print("\nRunning claim extraction...\n")
+    print("\nRunning Claim Agent")
 
     for doc in documents:
         if not doc.get("text"):
