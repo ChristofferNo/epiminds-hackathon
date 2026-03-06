@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from backend.context import shared_context
+from agents.scraper_agent import scraper_agent
+from agents.claim_agent import claim_agent
 
 app = FastAPI()
 
@@ -25,4 +27,16 @@ def set_topic(request: TopicRequest):
 
 @app.get("/context")
 def get_context():
+    return shared_context
+
+
+@app.post("/run-scraper")
+def run_scraper():
+    scraper_agent(shared_context)
+    return shared_context
+
+
+@app.post("/run-claims")
+def run_claims():
+    claim_agent(shared_context)
     return shared_context

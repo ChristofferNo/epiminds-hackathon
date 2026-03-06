@@ -2,14 +2,17 @@ import { useState } from 'react'
 import TopicInput from './components/TopicInput'
 import NarrativeList from './components/NarrativeList'
 import GraphView from './components/GraphView'
+import { runScraper, runClaims } from './api'
 
 export default function App() {
   const [topic, setTopic] = useState('')
   const [narratives, setNarratives] = useState([])
 
-  function handleAnalyze(submittedTopic) {
+  async function handleAnalyze(submittedTopic) {
     setTopic(submittedTopic)
     setNarratives([])
+    await runScraper()
+    await runClaims()
   }
 
   return (

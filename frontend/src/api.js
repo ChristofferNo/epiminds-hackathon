@@ -11,3 +11,13 @@ export async function getContext() {
   const response = await axios.get(`${BASE_URL}/context`)
   return response.data
 }
+
+export async function runScraper() {
+  const response = await axios.post(`${BASE_URL}/run-scraper`)
+  return response.data
+}
+
+export async function runClaims() {
+  const response = await axios.post(`${BASE_URL}/run-claims`)
+  return response.data
+}
