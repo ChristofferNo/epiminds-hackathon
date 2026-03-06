@@ -18,24 +18,25 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
   const commKeyRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize positions at kennel
+  // 1. Initialize positions at Center HQ and Deploy
   useEffect(() => {
-    const kennelPos = { x: 25, y: 50 };
+    const hqPos = { x: 50, y: 50 };
     const initial: Record<string, { x: number; y: number }> = {};
-    agentStates.forEach(a => { initial[a.id] = { ...kennelPos }; });
+    agentStates.forEach(a => { initial[a.id] = { ...hqPos }; });
     setAgentPositions(initial);
     
-    // Deploy after a brief moment
     const t = setTimeout(() => {
       setDeployed(true);
-      const deployed: Record<string, { x: number; y: number }> = {};
-      agentStates.forEach(a => { deployed[a.id] = { x: a.zone.x, y: a.zone.y }; });
-      setAgentPositions(deployed);
-    }, 500);
+      const deployedPositions: Record<string, { x: number; y: number }> = {};
+      agentStates.forEach(a => { 
+        deployedPositions[a.id] = { x: a.zone.x, y: a.zone.y }; 
+      });
+      setAgentPositions(deployedPositions);
+    }, 800);
     return () => clearTimeout(t);
   }, []);
 
-  // Findings feed
+  // 2. Intelligence Feed
   useEffect(() => {
     if (!deployed) return;
     let i = 0;
@@ -45,7 +46,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
       setFindings(prev => [finding, ...prev]);
       setFindingCount(prev => prev + 1);
       
-      // Flash the agent
       setFlashingAgents(prev => new Set(prev).add(finding.agentId));
       setTimeout(() => {
         setFlashingAgents(prev => {
@@ -60,25 +60,33 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
     return () => clearInterval(interval);
   }, [deployed]);
 
-  // Communication lines
+  // 3. High-Frequency Chatter (Comm Lines)
   useEffect(() => {
     if (!deployed) return;
     const interval = setInterval(() => {
       const activeAgents = agentStates.filter(a => a.active);
       if (activeAgents.length < 2) return;
+      
       const a1 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
-      let a2 = a1;
-      while (a2.id === a1.id) a2 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
+      let a2 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
+      
+      const toHQ = Math.random() > 0.7;
+
       const key = commKeyRef.current++;
-      setCommLines(prev => [...prev, { from: a1.id, to: a2.id, key }]);
+      setCommLines(prev => [...prev, { 
+        from: a1.id, 
+        to: toHQ ? 'HQ_ANCHOR' : a2.id, 
+        key 
+      }]);
+
       setTimeout(() => {
         setCommLines(prev => prev.filter(l => l.key !== key));
-      }, 2000);
-    }, 2500);
+      }, 1200);
+    }, 800); 
+
     return () => clearInterval(interval);
   }, [deployed, agentStates]);
 
-  // Show complete button after 15s
   useEffect(() => {
     const t = setTimeout(() => setShowCompleteBtn(true), 15000);
     return () => clearTimeout(t);
@@ -88,29 +96,66 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
     setAgentStates(prev => prev.map(a => a.id === id ? { ...a, active: !a.active } : a));
   }, []);
 
-  const getPos = (id: string) => agentPositions[id] || { x: 25, y: 50 };
+  const getPos = (id: string) => {
+    if (id === 'HQ_ANCHOR') return { x: 50, y: 50 };
+    return agentPositions[id] || { x: 50, y: 50 };
+  };
 
   return (
-    <div className="fixed inset-0 bg-parchment-light flex" style={{ animation: 'fade-up 0.4s ease-out' }}>
-      {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 h-12 bg-foreground/5 backdrop-blur-sm flex items-center px-6 z-20 border-b border-foreground/10">
-        <div className="flex items-center gap-2">
-          <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">Shared State:</span>
-          <span className="font-body text-xs font-bold text-foreground">LIVE</span>
-          <span className="w-2 h-2 rounded-full bg-safe" style={{ animation: 'pulse-ring 2s infinite' }} />
-        </div>
-        <div className="ml-8 font-body text-xs text-muted-foreground">
-          Findings: <span className="font-bold text-foreground">{findingCount}</span>
-        </div>
-        <div className="ml-auto font-body text-sm text-muted-foreground">
-          Investigating: <span className="font-bold text-foreground italic">"{topic}"</span>
+    <div className="fixed inset-0 bg-parchment-light flex overflow-hidden font-sans">
+      {/* INJECTED ANIMATIONS */}
+      <style>{`
+        @keyframes comm-line {
+          0% { stroke-dashoffset: 40; opacity: 0; }
+          20% { opacity: 0.8; }
+          100% { stroke-dashoffset: 0; opacity: 0; }
+        }
+
+        @keyframes pulse-ring {
+          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; }
+          100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+        }
+
+        @keyframes radar-sweep {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes fade-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* HUD Header */}
+      <div className="absolute top-0 left-0 right-0 h-12 bg-white/60 backdrop-blur-xl flex items-center px-6 z-50 border-b border-black/5 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-safe animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Swarm Protocol Active</span>
+          </div>
+          <div className="h-4 w-[1px] bg-black/10" />
+          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
+            Topic: <span className="text-foreground italic">"{topic}"</span>
+          </span>
         </div>
       </div>
 
-      {/* Main canvas */}
-      <div ref={containerRef} className="flex-1 relative mt-12 mb-0">
-        <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }}>
-          {/* Communication lines */}
+      {/* Map Canvas */}
+      <div ref={containerRef} className="flex-1 relative mt-12 overflow-hidden bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:30px_30px]">
+        
+        {/* Radar Sweep Effect */}
+        <div 
+          className="absolute top-1/2 left-1/2 w-[150%] h-[150%] pointer-events-none opacity-[0.03]"
+          style={{
+            background: 'conic-gradient(from 0deg, transparent 0deg, currentColor 40deg, transparent 41deg)',
+            transformOrigin: 'top left',
+            animation: 'radar-sweep 6s linear infinite',
+            zIndex: 1
+          }}
+        />
+
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 2 }}>
           {commLines.map(line => {
             const from = getPos(line.from);
             const to = getPos(line.to);
@@ -119,139 +164,132 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                 key={line.key}
                 x1={`${from.x}%`} y1={`${from.y}%`}
                 x2={`${to.x}%`} y2={`${to.y}%`}
-                stroke="hsl(var(--foreground))"
-                strokeWidth="1"
+                stroke="currentColor"
+                className="text-foreground/40"
+                strokeWidth="1.5"
                 strokeDasharray="4 4"
-                style={{ animation: 'comm-line 2s ease-in-out forwards' }}
+                style={{ animation: 'comm-line 1.2s linear forwards' }}
               />
             );
           })}
         </svg>
 
-        {/* Kennel */}
-        <div className="absolute" style={{ left: '25%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 2 }}>
-          <svg width="60" height="50" viewBox="0 0 60 50">
-            <polygon points="30,2 58,22 2,22" fill="hsl(var(--foreground))" />
-            <rect x="8" y="22" width="44" height="26" fill="hsl(var(--foreground))" />
-            <rect x="20" y="30" width="20" height="18" rx="10" fill="hsl(var(--parchment-light))" />
-          </svg>
-          <div className="text-center mt-1 font-body text-xs font-bold text-foreground uppercase tracking-widest">HQ</div>
+        {/* Command HQ */}
+        <div className="absolute transition-all duration-1000" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
+          <div className="absolute top-1/2 left-1/2 w-48 h-48 rounded-full border border-foreground/10" style={{ animation: 'pulse-ring 3s infinite' }} />
+          <div className="relative bg-foreground p-5 rounded-2xl shadow-2xl border-4 border-white flex flex-col items-center group cursor-help">
+            <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">🏢</span>
+            <span className="text-[9px] font-black text-white uppercase tracking-[0.3em]">Command</span>
+          </div>
         </div>
 
-        {/* Agents */}
+        {/* Agents Swarm */}
         {agentStates.map((agent, i) => {
           const pos = getPos(agent.id);
           const isFlashing = flashingAgents.has(agent.id);
+          const isAtHQ = pos.x === 50 && pos.y === 50;
+
           return (
             <div
               key={agent.id}
-              className="absolute flex flex-col items-center"
+              className="absolute flex flex-col items-center transition-all"
               style={{
                 left: `${pos.x}%`,
                 top: `${pos.y}%`,
                 transform: 'translate(-50%, -50%)',
-                transition: `all ${1.5 + i * 0.15}s cubic-bezier(0.34, 1.56, 0.64, 1)`,
-                zIndex: 5,
+                transitionDuration: `${1.5 + i * 0.2}s`,
+                transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+                zIndex: 20,
               }}
             >
-              {/* Pulse rings */}
-              {agent.active && deployed && pos.x !== 25 && (
-                <>
-                  <div className="absolute w-6 h-6 rounded-full border border-foreground/20" style={{ animation: 'pulse-ring 3s infinite' }} />
-                  <div className="absolute w-6 h-6 rounded-full border border-foreground/10" style={{ animation: 'pulse-ring 3s infinite 1s' }} />
-                </>
+              {agent.active && deployed && !isAtHQ && (
+                <div className="absolute top-1/2 left-1/2 w-16 h-16 border border-foreground/10 rounded-full" style={{ animation: 'pulse-ring 2s infinite' }} />
               )}
               
-              {/* Agent circle */}
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] transition-colors duration-300 ${
-                  agent.active ? (isFlashing ? 'bg-critical' : 'bg-foreground') : 'bg-muted-foreground/40'
+                className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 shadow-xl ${
+                  agent.active ? (isFlashing ? 'bg-critical scale-125 border-white rotate-12' : 'bg-white border-foreground hover:scale-110') : 'bg-muted border-muted-foreground opacity-40'
                 }`}
               >
-                <span className={agent.active ? 'text-primary-foreground' : 'text-muted'}>🐾</span>
+                <span className="text-xl">{agent.active ? '🤖' : '💤'}</span>
               </div>
               
-              {/* Finding badge */}
               {isFlashing && (
-                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-critical text-critical-foreground text-[8px] flex items-center justify-center font-bold" style={{ animation: 'fade-up 0.3s ease-out' }}>
-                  +1
+                <div className="absolute -top-6 bg-critical text-white text-[9px] px-2 py-0.5 rounded-md font-black animate-bounce shadow-lg z-30">
+                  NEW DATA
                 </div>
               )}
               
-              {/* Label */}
-              <span className={`mt-1 font-body text-[10px] font-bold whitespace-nowrap ${!agent.active ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                {agent.name}
-              </span>
-              <span className="font-body text-[8px] text-muted-foreground whitespace-nowrap">{agent.role}</span>
-              {!agent.active && (
-                <span className="text-[8px] text-warning font-bold mt-0.5">⚠ offline</span>
-              )}
+              <div className="mt-3 text-center pointer-events-none">
+                <div className={`text-[10px] font-black uppercase tracking-tighter leading-none ${!agent.active ? 'text-muted-foreground' : 'text-foreground'}`}>
+                  {agent.name}
+                </div>
+                <div className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mt-1 opacity-60 italic">{agent.role}</div>
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Kill Switch Panel */}
-      <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur-sm border border-foreground/10 rounded-lg p-3 z-20 w-52">
-        <h3 className="font-body text-[10px] uppercase tracking-widest text-muted-foreground mb-2 font-bold">Agent Control</h3>
-        <div className="space-y-1">
-          {agentStates.map(agent => (
-            <div key={agent.id} className="flex items-center justify-between">
-              <span className={`font-body text-[11px] ${!agent.active ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                {agent.name}
-              </span>
-              <button
-                onClick={() => toggleAgent(agent.id)}
-                className={`w-8 h-4 rounded-full transition-colors duration-200 relative ${agent.active ? 'bg-safe' : 'bg-muted-foreground/30'}`}
-              >
-                <div className={`w-3 h-3 rounded-full bg-background absolute top-0.5 transition-transform duration-200 ${agent.active ? 'left-4' : 'left-0.5'}`} />
-              </button>
-            </div>
-          ))}
+      {/* Control Panel (Bottom Left) */}
+      <div className="absolute bottom-8 left-8 w-64 space-y-4 z-50">
+        <div className="bg-white/80 backdrop-blur-xl border border-black/5 rounded-2xl p-5 shadow-2xl animate-[fade-up_0.6s_ease-out]">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-foreground/30">Manual Control</h3>
+          <div className="space-y-3">
+            {agentStates.map(agent => (
+              <div key={agent.id} className="flex items-center justify-between group">
+                <span className={`text-[11px] font-bold transition-all ${!agent.active ? 'text-muted-foreground italic' : 'text-foreground'}`}>
+                  {agent.name}
+                </span>
+                <button
+                  onClick={() => toggleAgent(agent.id)}
+                  className={`w-10 h-5 rounded-full transition-all relative p-1 ${agent.active ? 'bg-safe' : 'bg-muted-foreground/20'}`}
+                >
+                  <div className={`w-3 h-3 rounded-full bg-white transition-transform ${agent.active ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Evidence Feed */}
-      <div className="w-72 bg-background/90 backdrop-blur-sm border-l border-foreground/10 mt-12 z-20 flex flex-col">
-        <div className="p-3 border-b border-foreground/10 flex items-center gap-2">
-          <h3 className="font-body text-xs font-bold uppercase tracking-widest text-foreground">Evidence Board</h3>
-          <span className="w-2 h-2 rounded-full bg-critical" style={{ animation: 'pulse-ring 1.5s infinite' }} />
-          <span className="font-body text-[10px] text-muted-foreground">LIVE</span>
+      {/* Evidence Sidebar (Right) */}
+      <div className="w-80 bg-white/90 backdrop-blur-2xl border-l border-black/5 mt-12 z-50 flex flex-col shadow-2xl animate-[fade-up_0.8s_ease-out]">
+        <div className="p-5 border-b border-black/5 bg-black/[0.02]">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Intel Stream</h3>
+            <div className="text-[10px] font-black px-2 py-1 bg-foreground text-white rounded shadow-sm">{findingCount}</div>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
           {findings.map((f) => (
             <div
               key={f.id}
-              className="bg-parchment-light/50 border border-foreground/5 rounded p-2"
-              style={{ animation: 'slide-in-right 0.4s ease-out' }}
+              className="bg-white border border-black/5 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all animate-[fade-up_0.4s_ease-out]"
             >
-              <div className="flex items-center gap-1.5 mb-1">
-                <div className={`w-2 h-2 rounded-full ${f.severity === 'critical' ? 'bg-critical' : f.severity === 'high' ? 'bg-warning' : 'bg-safe'}`} />
-                <span className="font-body text-[10px] font-bold text-foreground">{f.agentName}</span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-black uppercase tracking-tighter text-foreground/40">{f.agentName}</span>
+                <div className={`w-1.5 h-1.5 rounded-full ${f.severity === 'critical' ? 'bg-critical shadow-[0_0_8px_#ef4444]' : f.severity === 'high' ? 'bg-warning' : 'bg-safe'}`} />
               </div>
-              <div className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold font-body uppercase tracking-wider mb-1 ${
-                f.severity === 'critical' ? 'bg-critical/10 text-critical' : f.severity === 'high' ? 'bg-warning/10 text-warning' : 'bg-safe/10 text-safe'
-              }`}>
-                {f.type}
+              <p className="text-[11px] text-foreground font-semibold leading-relaxed mb-3">
+                {f.description}
+              </p>
+              <div className="flex justify-between items-center opacity-30 text-[8px] font-bold uppercase tracking-widest">
+                <span>{f.timestamp}</span>
+                <span>ID: {f.id.slice(0, 4)}</span>
               </div>
-              <p className="font-body text-[10px] text-muted-foreground leading-tight">{f.description}</p>
-              <span className="font-body text-[8px] text-muted-foreground/60 mt-1 block">{f.timestamp}</span>
             </div>
           ))}
-          {findings.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground font-body text-xs">
-              Deploying agents...
-            </div>
-          )}
         </div>
 
         {showCompleteBtn && (
-          <div className="p-3 border-t border-foreground/10">
+          <div className="p-6 border-t border-black/5 bg-foreground/[0.02]">
             <button
               onClick={onComplete}
-              className="w-full py-2 bg-foreground text-primary-foreground font-body text-xs font-bold rounded hover:bg-foreground/90 transition-colors"
+              className="w-full py-4 bg-foreground text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-xl hover:bg-foreground/90 transition-all shadow-xl hover:translate-y-[-2px] active:translate-y-[0px]"
             >
-              View Evidence Board →
+              Finalize & Report
             </button>
           </div>
         )}
