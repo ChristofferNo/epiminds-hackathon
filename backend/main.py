@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from backend.context import shared_context
+from Backend.context import shared_context
 from agents.scraper_agent import scraper_agent
 from agents.claim_agent import claim_agent
+from agents.credibility_agent import check_credibility
 
 app = FastAPI()
 
@@ -39,4 +40,10 @@ def run_scraper():
 @app.post("/run-claims")
 def run_claims():
     claim_agent(shared_context)
+    return shared_context
+
+
+@app.post("/run-credibility")
+def run_credibility():
+    check_credibility(shared_context)
     return shared_context

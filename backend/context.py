@@ -2,5 +2,6 @@ shared_context = {
     "topic": "",
     "documents": [],
     "claims": [],
-    "narratives": []
+    "narratives": [],
+    "credibility": []
 }
