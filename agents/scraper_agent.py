@@ -89,3 +89,4 @@ def scraper_agent(context: dict) -> None:
         context["documents"].append(page)
 
     print(f"Total documents: {len(context['documents'])}\n")
+    return True

@@ -13,7 +13,7 @@ A system that maps online narratives and potential disinformation around a user-
 
 ```bash
 pip install -r requirements.txt
-uvicorn backend.main:app --reload
+uvicorn Backend.main:app --reload
 ```
 
 Runs on `http://localhost:8000`.
@@ -30,10 +30,10 @@ Runs on `http://localhost:3000`.
 
 ## API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/topic` | Set the current topic |
-| GET | `/context` | Get full shared context |
+| Method | Path       | Description             |
+| ------ | ---------- | ----------------------- |
+| POST   | `/topic`   | Set the current topic   |
+| GET    | `/context` | Get full shared context |
 
 ## Project Structure
 

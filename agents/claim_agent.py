@@ -50,32 +50,39 @@ Return ONLY a valid JSON object in this exact format, with no markdown or extra 
     return json.loads(raw)
 
 
-def claim_agent(context: dict) -> None:
+def claim_agent(context: dict):
     if not context["documents"]:
         return
 
-    if context["claims"]:
-        return
+    processed = context["claims_processed_count"]
+    new_docs = context["documents"][processed:]
 
-    topic = context["topic"]
-    documents = context["documents"]
+    if new_docs:
+        topic = context["topic"]
+        print("\nRunning Claim Agent (incremental)")
 
-    print("\nRunning Claim Agent")
+        for doc in new_docs:
+            if not doc.get("text"):
+                context["claims_processed_count"] += 1
+                continue
 
-    for doc in documents:
-        if not doc.get("text"):
-            continue
+            print(f"Document: {doc['title'] or doc['url']}")
+            try:
+                result = extract_claims_for_document(doc, topic)
+                claims = result.get("claims", [])
+                for claim in claims:
+                    print(f"  - {claim}")
+                context["claims"].append(result)
+            except Exception as e:
+                print(f"  Failed to extract claims: {e}")
+            finally:
+                context["claims_processed_count"] += 1
 
-        print(f"Document: {doc['title'] or doc['url']}")
-        try:
-            result = extract_claims_for_document(doc, topic)
-            claims = result.get("claims", [])
-            for claim in claims:
-                print(f"  - {claim}")
-            context["claims"].append(result)
-        except Exception as e:
-            print(f"  Failed to extract claims: {e}")
+            print()
 
-        print()
+        print(f"Total claim sets extracted: {len(context['claims'])}")
 
-    print(f"Total claim sets extracted: {len(context['claims'])}")
+    scraper_done = context["agent_status"].get("scraper") == "done"
+    all_processed = context["claims_processed_count"] >= len(context["documents"])
+    if scraper_done and all_processed:
+        return True

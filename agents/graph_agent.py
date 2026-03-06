@@ -1,4 +1,4 @@
-def graph_agent(context: dict) -> None:
+def graph_agent(context: dict):
     if not context.get("claims"):
         return
 
@@ -6,7 +6,7 @@ def graph_agent(context: dict) -> None:
         return
 
     if context.get("graph"):
-        return
+        return True
 
     print("\nRunning Graph Builder Agent")
 
@@ -68,3 +68,4 @@ def graph_agent(context: dict) -> None:
     print("Graph built")
     print("Nodes:", len(nodes))
     print("Edges:", len(edges))
+    return True

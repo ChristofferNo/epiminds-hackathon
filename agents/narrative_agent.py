@@ -64,12 +64,14 @@ Return ONLY a valid JSON object in this exact format, with no markdown or extra 
     return narratives
 
 
-def narrative_agent(context: dict) -> None:
-    if not context["claims"]:
+def narrative_agent(context: dict):
+    if context["agent_status"].get("scraper") != "done":
+        return
+    if context["agent_status"].get("claim") != "done":
         return
 
     if context["narratives"]:
-        return
+        return True
 
     # Flatten all claims from all documents
     claims = []
@@ -90,3 +92,5 @@ def narrative_agent(context: dict) -> None:
     print("\nNarratives discovered:")
     for n in narratives:
         print("-", n["theme"])
+
+    return True
