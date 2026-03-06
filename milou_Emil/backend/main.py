@@ -88,7 +88,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def start_investigation(body: dict):
     """
     Start a new swarm investigation.
-    POST body: { "topic": "War in Iran" }
+    POST body: { "topic": "Epiminds" }
     """
     topic = body.get("topic", "")
     depth = body.get("depth", "deep")  # "quick" or "deep"
