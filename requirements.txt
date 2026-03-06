@@ -3,5 +3,5 @@ uvicorn
 requests
 beautifulsoup4
 pydantic
-google-generativeai
+google-genai
 python-dotenv
