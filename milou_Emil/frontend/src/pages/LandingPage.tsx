@@ -9,7 +9,8 @@ const LandingPage = ({ onSearch }: LandingPageProps) => {
   const [topic, setTopic] = useState('');
 
   const handleSubmit = (mode: 'quick' | 'deep') => {
-    onSearch(topic || "War in Iran", mode);
+    if (!topic.trim()) return;
+    onSearch(topic.trim(), mode);
   };
 
   return (
@@ -41,13 +42,15 @@ const LandingPage = ({ onSearch }: LandingPageProps) => {
         <div className="flex gap-4 mb-12">
           <button
             onClick={() => handleSubmit('quick')}
-            className="px-8 py-3 rounded-full border-2 border-foreground text-foreground font-body font-medium text-sm hover:bg-foreground hover:text-primary-foreground transition-all duration-200"
+            disabled={!topic.trim()}
+            className="px-8 py-3 rounded-full border-2 border-foreground text-foreground font-body font-medium text-sm hover:bg-foreground hover:text-primary-foreground transition-all duration-200 disabled:opacity-30 disabled:pointer-events-none"
           >
             Quick Sniff
           </button>
           <button
             onClick={() => handleSubmit('deep')}
-            className="px-8 py-3 rounded-full bg-foreground text-primary-foreground font-body font-medium text-sm hover:bg-foreground/90 transition-all duration-200"
+            disabled={!topic.trim()}
+            className="px-8 py-3 rounded-full bg-foreground text-primary-foreground font-body font-medium text-sm hover:bg-foreground/90 transition-all duration-200 disabled:opacity-30 disabled:pointer-events-none"
           >
             Deep Investigation
           </button>

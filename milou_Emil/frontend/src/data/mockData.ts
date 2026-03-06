@@ -9,16 +9,16 @@ export interface Agent {
 }
 
 export const agents: Agent[] = [
-  { id: 'scout', name: 'Scout', role: 'News Sources', zone: { x: 15, y: 15 }, active: true, score: 82, findings: ['Found 12 articles from unverified news sites', 'breaking-truth-news.com registered 3 days ago', 'rapidinfo24.net has no editorial policy'] },
-  { id: 'pixel', name: 'Pixel', role: 'Image Analysis', zone: { x: 45, y: 10 }, active: true, score: 91, findings: ['2 images show AI generation artifacts', 'Reverse image search: 0 prior results', 'EXIF data stripped from all images'] },
-  { id: 'reel', name: 'Reel', role: 'Video Analysis', zone: { x: 75, y: 12 }, active: true, score: 67, findings: ['Audio deepfake confidence: 34%', 'Video splice detected at 0:43', 'Original footage source unverified'] },
-  { id: 'echo', name: 'Echo', role: 'Social Media', zone: { x: 85, y: 45 }, active: true, score: 78, findings: ['Viral on TikTok: 2.3M views in 6 hours', '340 accounts sharing identical text', 'Coordinated posting pattern detected'] },
-  { id: 'lingua', name: 'Lingua', role: 'Language Analysis', zone: { x: 78, y: 78 }, active: true, score: 85, findings: ['AI-generated text probability: 89%', 'Emotional manipulation score: HIGH', 'Clickbait language patterns detected'] },
-  { id: 'veritas', name: 'Veritas', role: 'Source Verification', zone: { x: 48, y: 85 }, active: true, score: 72, findings: ['Primary source: UNVERIFIABLE', '3 of 5 cited experts don\'t exist', 'Domain WHOIS data redacted'] },
-  { id: 'spider', name: 'Spider', role: 'Cross-Reference', zone: { x: 18, y: 80 }, active: true, score: 64, findings: ['Narrative matches 4 other domains', 'Identical article on rapidinfo24.net', 'Content syndication network detected'] },
-  { id: 'ghost', name: 'Ghost', role: 'Metadata', zone: { x: 10, y: 48 }, active: true, score: 58, findings: ['Server located in undisclosed jurisdiction', 'SSL certificate issued 2 days ago', 'No cached versions found'] },
-  { id: 'trace', name: 'Trace', role: 'Network Mapping', zone: { x: 50, y: 22 }, active: true, score: 76, findings: ['6 domains share same IP address', 'Ad network linked to known disinfo', 'Traffic spike from bot-like sources'] },
-  { id: 'rex', name: 'Rex', role: "Devil's Advocate", zone: { x: 55, y: 50 }, active: true, score: 45, findings: ['Some claims have partial basis in fact', 'Timeline of events is plausible', 'Counter-narrative exists from credible sources'] },
+  { id: 'scout', name: 'Scout', role: 'News Sources', zone: { x: 50, y: 12 }, active: true, score: 82, findings: ['Found 12 articles from unverified news sites', 'breaking-truth-news.com registered 3 days ago', 'rapidinfo24.net has no editorial policy'] },
+  { id: 'pixel', name: 'Pixel', role: 'Image Analysis', zone: { x: 80, y: 18 }, active: true, score: 91, findings: ['2 images show AI generation artifacts', 'Reverse image search: 0 prior results', 'EXIF data stripped from all images'] },
+  { id: 'reel', name: 'Reel', role: 'Video Analysis', zone: { x: 90, y: 42 }, active: true, score: 67, findings: ['Audio deepfake confidence: 34%', 'Video splice detected at 0:43', 'Original footage source unverified'] },
+  { id: 'echo', name: 'Echo', role: 'Social Media', zone: { x: 82, y: 72 }, active: true, score: 78, findings: ['Viral on TikTok: 2.3M views in 6 hours', '340 accounts sharing identical text', 'Coordinated posting pattern detected'] },
+  { id: 'lingua', name: 'Lingua', role: 'Language Analysis', zone: { x: 58, y: 88 }, active: true, score: 85, findings: ['AI-generated text probability: 89%', 'Emotional manipulation score: HIGH', 'Clickbait language patterns detected'] },
+  { id: 'veritas', name: 'Veritas', role: 'Source Verification', zone: { x: 30, y: 88 }, active: true, score: 72, findings: ['Primary source: UNVERIFIABLE', '3 of 5 cited experts don\'t exist', 'Domain WHOIS data redacted'] },
+  { id: 'spider', name: 'Spider', role: 'Cross-Reference', zone: { x: 12, y: 72 }, active: true, score: 64, findings: ['Narrative matches 4 other domains', 'Identical article on rapidinfo24.net', 'Content syndication network detected'] },
+  { id: 'ghost', name: 'Ghost', role: 'Metadata', zone: { x: 8, y: 42 }, active: true, score: 58, findings: ['Server located in undisclosed jurisdiction', 'SSL certificate issued 2 days ago', 'No cached versions found'] },
+  { id: 'trace', name: 'Trace', role: 'Network Mapping', zone: { x: 18, y: 18 }, active: true, score: 76, findings: ['6 domains share same IP address', 'Ad network linked to known disinfo', 'Traffic spike from bot-like sources'] },
+  { id: 'rex', name: 'Rex', role: "Devil's Advocate", zone: { x: 50, y: 50 }, active: true, score: 45, findings: ['Some claims have partial basis in fact', 'Timeline of events is plausible', 'Counter-narrative exists from credible sources'] },
 ];
 
 export interface Finding {

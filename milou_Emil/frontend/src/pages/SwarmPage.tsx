@@ -6,12 +6,18 @@ interface SwarmPageProps {
   onComplete: () => void;
 }
 
+interface Trace {
+  fromX: number; fromY: number; toX: number; toY: number;
+  key: number; age: number;
+}
+
 const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
   const [agentStates, setAgentStates] = useState<Agent[]>(initialAgents.map(a => ({ ...a, active: true })));
   const [agentPositions, setAgentPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [findings, setFindings] = useState<Finding[]>([]);
   const [findingCount, setFindingCount] = useState(0);
   const [commLines, setCommLines] = useState<{ from: string; to: string; key: number }[]>([]);
+  const [traces, setTraces] = useState<Trace[]>([]);
   const [flashingAgents, setFlashingAgents] = useState<Set<string>>(new Set());
   const [showCompleteBtn, setShowCompleteBtn] = useState(false);
   const [deployed, setDeployed] = useState(false);
@@ -25,7 +31,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
     agentStates.forEach(a => { initial[a.id] = { ...kennelPos }; });
     setAgentPositions(initial);
 
-    // Deploy after a brief moment
     const t = setTimeout(() => {
       setDeployed(true);
       const deployed: Record<string, { x: number; y: number }> = {};
@@ -45,7 +50,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
       setFindings(prev => [finding, ...prev]);
       setFindingCount(prev => prev + 1);
 
-      // Flash the agent
       setFlashingAgents(prev => new Set(prev).add(finding.agentId));
       setTimeout(() => {
         setFlashingAgents(prev => {
@@ -60,23 +64,53 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
     return () => clearInterval(interval);
   }, [deployed]);
 
-  // Communication lines
+  // HIGH-FREQUENCY communication lines + traces
   useEffect(() => {
     if (!deployed) return;
     const interval = setInterval(() => {
       const activeAgents = agentStates.filter(a => a.active);
       if (activeAgents.length < 2) return;
-      const a1 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
-      let a2 = a1;
-      while (a2.id === a1.id) a2 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
-      const key = commKeyRef.current++;
-      setCommLines(prev => [...prev, { from: a1.id, to: a2.id, key }]);
-      setTimeout(() => {
-        setCommLines(prev => prev.filter(l => l.key !== key));
-      }, 2000);
-    }, 2500);
+
+      // Fire 2-3 connections at once for higher density
+      const burstCount = Math.floor(Math.random() * 2) + 2;
+      for (let b = 0; b < burstCount; b++) {
+        const a1 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
+        let a2 = a1;
+        while (a2.id === a1.id) a2 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
+
+        const key = commKeyRef.current++;
+        const fromPos = agentPositions[a1.id] || { x: 25, y: 50 };
+        const toPos = agentPositions[a2.id] || { x: 25, y: 50 };
+
+        setCommLines(prev => [...prev, { from: a1.id, to: a2.id, key }]);
+
+        // Add a trace that lingers
+        setTraces(prev => [...prev, {
+          fromX: fromPos.x, fromY: fromPos.y,
+          toX: toPos.x, toY: toPos.y,
+          key, age: 0
+        }]);
+
+        setTimeout(() => {
+          setCommLines(prev => prev.filter(l => l.key !== key));
+        }, 1000);
+      }
+    }, 350); // Much higher frequency
+
     return () => clearInterval(interval);
-  }, [deployed, agentStates]);
+  }, [deployed, agentStates, agentPositions]);
+
+  // Fade out traces over time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTraces(prev =>
+        prev
+          .map(t => ({ ...t, age: t.age + 1 }))
+          .filter(t => t.age < 12) // Keep traces for ~6 seconds
+      );
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
 
   // Show complete button after 15s
   useEffect(() => {
@@ -91,13 +125,62 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
   const getPos = (id: string) => agentPositions[id] || { x: 25, y: 50 };
 
   return (
-    <div className="fixed inset-0 bg-parchment-light flex" style={{ animation: 'fade-up 0.4s ease-out' }}>
+    <div className="fixed inset-0 bg-parchment-light flex overflow-hidden" style={{ animation: 'fade-up 0.4s ease-out' }}>
+      {/* Injected animations */}
+      <style>{`
+        @keyframes comm-line {
+          0% { stroke-dashoffset: 40; opacity: 0; }
+          15% { opacity: 0.7; }
+          100% { stroke-dashoffset: 0; opacity: 0; }
+        }
+        @keyframes pulse-ring {
+          0% { transform: scale(0.8); opacity: 0.6; }
+          100% { transform: scale(2.5); opacity: 0; }
+        }
+        @keyframes fade-up {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slide-in-right {
+          from { opacity: 0; transform: translateX(20px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes flow-field {
+          0% { transform: translateX(0) translateY(0); }
+          100% { transform: translateX(-120px) translateY(-80px); }
+        }
+      `}</style>
+
+      {/* Subtle flowing background pattern */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+        <svg
+          className="absolute"
+          style={{
+            width: 'calc(100% + 240px)',
+            height: 'calc(100% + 160px)',
+            top: '-80px',
+            left: '-120px',
+            animation: 'flow-field 8s linear infinite',
+            opacity: 0.035,
+          }}
+        >
+          {/* Repeating arrow/chevron pattern flowing diagonally */}
+          <defs>
+            <pattern id="flow-arrows" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+              <path d="M20 30 L30 20 L40 30" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M20 45 L30 35 L40 45" fill="none" stroke="currentColor" strokeWidth="1" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#flow-arrows)" />
+        </svg>
+      </div>
+
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 h-12 bg-foreground/5 backdrop-blur-sm flex items-center px-6 z-20 border-b border-foreground/10">
         <div className="flex items-center gap-2">
           <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">Shared State:</span>
           <span className="font-body text-xs font-bold text-foreground">LIVE</span>
-          <span className="w-2 h-2 rounded-full bg-safe" style={{ animation: 'pulse-ring 2s infinite' }} />
+          <span className="w-2 h-2 rounded-full bg-safe animate-pulse" />
         </div>
         <div className="ml-8 font-body text-xs text-muted-foreground">
           Findings: <span className="font-bold text-foreground">{findingCount}</span>
@@ -110,7 +193,19 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
       {/* Main canvas */}
       <div ref={containerRef} className="flex-1 relative mt-12 mb-0">
         <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }}>
-          {/* Communication lines */}
+          {/* Lingering traces */}
+          {traces.map(trace => (
+            <line
+              key={`trace-${trace.key}`}
+              x1={`${trace.fromX}%`} y1={`${trace.fromY}%`}
+              x2={`${trace.toX}%`} y2={`${trace.toY}%`}
+              stroke="hsl(var(--foreground))"
+              strokeWidth="0.5"
+              opacity={Math.max(0, 0.15 - trace.age * 0.013)}
+            />
+          ))}
+
+          {/* Active communication lines */}
           {commLines.map(line => {
             const from = getPos(line.from);
             const to = getPos(line.to);
@@ -122,13 +217,13 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                 stroke="hsl(var(--foreground))"
                 strokeWidth="1"
                 strokeDasharray="4 4"
-                style={{ animation: 'comm-line 2s ease-in-out forwards' }}
+                style={{ animation: 'comm-line 1s ease-in-out forwards' }}
               />
             );
           })}
         </svg>
 
-        {/* Kennel */}
+        {/* Kennel / HQ */}
         <div className="absolute" style={{ left: '25%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 2 }}>
           <svg width="60" height="50" viewBox="0 0 60 50">
             <polygon points="30,2 58,22 2,22" fill="hsl(var(--foreground))" />
@@ -214,7 +309,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
       <div className="w-72 bg-background/90 backdrop-blur-sm border-l border-foreground/10 mt-12 z-20 flex flex-col">
         <div className="p-3 border-b border-foreground/10 flex items-center gap-2">
           <h3 className="font-body text-xs font-bold uppercase tracking-widest text-foreground">Evidence Board</h3>
-          <span className="w-2 h-2 rounded-full bg-critical" style={{ animation: 'pulse-ring 1.5s infinite' }} />
+          <span className="w-2 h-2 rounded-full bg-critical animate-pulse" />
           <span className="font-body text-[10px] text-muted-foreground">LIVE</span>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-2">
