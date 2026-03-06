@@ -2,7 +2,7 @@ import { useState } from 'react'
 import TopicInput from './components/TopicInput'
 import NarrativeList from './components/NarrativeList'
 import GraphView from './components/GraphView'
-import { runScraper, runClaims } from './api'
+import { runScraper, runClaims, runNarratives, runGraph } from './api'
 
 export default function App() {
   const [topic, setTopic] = useState('')
@@ -13,6 +13,8 @@ export default function App() {
     setNarratives([])
     await runScraper()
     await runClaims()
+    await runNarratives()
+    await runGraph()
   }
 
   return (

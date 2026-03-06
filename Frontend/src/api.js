@@ -21,3 +21,13 @@ export async function runClaims() {
   const response = await axios.post(`${BASE_URL}/run-claims`)
   return response.data
 }
+
+export async function runNarratives() {
+  const response = await axios.post(`${BASE_URL}/run-narratives`)
+  return response.data
+}
+
+export async function runGraph() {
+  const response = await axios.post(`${BASE_URL}/run-graph`)
+  return response.data
+}
