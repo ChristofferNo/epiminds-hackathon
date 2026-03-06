@@ -49,7 +49,7 @@ shared_context = {
 }
 ```
 
-Each agent runs as a daemon `threading.Thread`, polling every 2s. An implicit pipeline forms because each agent waits until its input key is populated before writing its output.
+Each agent runs as a daemon `threading.Thread` in true parallel. Agents poll every 2s and act as soon as their required input keys are populated — no sequential gating.
 
 **Endpoints:**
 
