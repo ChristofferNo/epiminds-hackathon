@@ -1,87 +1,133 @@
-import { useState } from 'react';
-import { agents, mockFindings, regionData, type Finding } from '@/data/mockData';
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+const API_BASE = 'http://localhost:8000';
 
 interface ResultsPageProps {
   topic: string;
 }
 
-const WorldMap = () => {
-  const [tooltip, setTooltip] = useState<{ name: string; narratives: string[]; x: number; y: number } | null>(null);
+interface BackendDoc {
+  url: string;
+  title: string;
+  text: string;
+}
 
-  return (
-    <div className="relative">
-      <svg viewBox="0 0 100 60" className="w-full" style={{ maxHeight: '400px' }}>
-        {/* Simplified world map shapes */}
-        <rect width="100" height="60" fill="hsl(var(--parchment))" rx="2" />
-        {/* Continents - simplified */}
-        {/* North America */}
-        <path d="M8,10 L22,8 L25,14 L28,18 L22,22 L18,26 L10,22 L6,16 Z" fill="hsl(var(--parchment-light))" stroke="hsl(var(--parchment-dark))" strokeWidth="0.3" />
-        {/* South America */}
-        <path d="M18,30 L24,28 L28,34 L26,42 L22,48 L18,44 L16,36 Z" fill="hsl(var(--parchment-light))" stroke="hsl(var(--parchment-dark))" strokeWidth="0.3" />
-        {/* Europe */}
-        <path d="M42,8 L52,6 L54,12 L50,16 L44,14 L42,10 Z" fill="hsl(var(--parchment-light))" stroke="hsl(var(--parchment-dark))" strokeWidth="0.3" />
-        {/* Africa */}
-        <path d="M42,18 L54,16 L58,24 L56,36 L50,42 L44,38 L40,28 Z" fill="hsl(var(--parchment-light))" stroke="hsl(var(--parchment-dark))" strokeWidth="0.3" />
-        {/* Asia */}
-        <path d="M54,6 L80,4 L85,14 L82,24 L74,28 L64,22 L58,14 Z" fill="hsl(var(--parchment-light))" stroke="hsl(var(--parchment-dark))" strokeWidth="0.3" />
-        {/* SE Asia / Oceania */}
-        <path d="M74,28 L84,26 L88,34 L84,40 L78,38 L74,32 Z" fill="hsl(var(--parchment-light))" stroke="hsl(var(--parchment-dark))" strokeWidth="0.3" />
-        {/* Australia */}
-        <path d="M78,42 L90,40 L92,46 L88,50 L80,48 Z" fill="hsl(var(--parchment-light))" stroke="hsl(var(--parchment-dark))" strokeWidth="0.3" />
+interface BackendClaimGroup {
+  url: string;
+  title: string;
+  claims: string[];
+}
 
-        {/* Region bubbles */}
-        {regionData.map((region) => (
-          <g key={region.name} className="cursor-pointer" onClick={() => setTooltip(tooltip?.name === region.name ? null : { name: region.name, narratives: region.narratives, x: region.cx, y: region.cy })}>
-            <circle cx={region.cx} cy={region.cy} r={region.r} fill={`hsl(var(--${region.color}))`} opacity="0.25" />
-            <circle cx={region.cx} cy={region.cy} r={region.r * 0.6} fill={`hsl(var(--${region.color}))`} opacity="0.5" />
-            <circle cx={region.cx} cy={region.cy} r={region.r * 0.25} fill={`hsl(var(--${region.color}))`} opacity="0.9" />
-          </g>
-        ))}
-      </svg>
+interface BackendNarrative {
+  theme: string;
+  claims: string[];
+}
 
-      {/* Bubble labels */}
-      {regionData.map(region => (
-        <div
-          key={region.name}
-          className="absolute font-body text-[9px] font-bold pointer-events-none"
-          style={{ left: `${region.cx}%`, top: `${(region.cy / 60) * 100 + 3}%`, transform: 'translateX(-50%)' }}
-        >
-          <span className={`text-${region.color}`}>{region.level}: {region.sources} sources</span>
-        </div>
-      ))}
+interface NarrativeDisplay {
+  theme: string;
+  claims: string[];
+  sources: { title: string; url: string }[];
+  credibilityScore: number;
+  label: 'Highly Credible' | 'Contested' | 'Unverified';
+}
 
-      {/* Tooltip */}
-      {tooltip && (
-        <div
-          className="absolute bg-background border border-foreground/10 rounded-lg p-3 shadow-lg z-30"
-          style={{ left: `${tooltip.x}%`, top: `${(tooltip.y / 60) * 100 - 5}%`, transform: 'translate(-50%, -100%)', width: '200px', animation: 'fade-up 0.2s ease-out' }}
-        >
-          <h4 className="font-body text-xs font-bold text-foreground mb-1">{tooltip.name}</h4>
-          <ul className="space-y-0.5">
-            {tooltip.narratives.map((n, i) => (
-              <li key={i} className="font-body text-[10px] text-muted-foreground">• {n}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-};
+function computeNarratives(
+  narratives: BackendNarrative[],
+  claimGroups: BackendClaimGroup[],
+  documents: BackendDoc[]
+): NarrativeDisplay[] {
+  // Build a map: claim text → which source URLs contain it
+  const claimToSources: Record<string, Set<string>> = {};
+  for (const group of claimGroups) {
+    for (const claim of group.claims) {
+      const key = claim.toLowerCase().trim();
+      if (!claimToSources[key]) claimToSources[key] = new Set();
+      claimToSources[key].add(group.url);
+    }
+  }
 
-const ThreatScore = ({ score }: { score: number }) => {
-  const color = score > 70 ? 'critical' : score > 30 ? 'warning' : 'safe';
+  // Build url → doc map
+  const urlToDoc: Record<string, BackendDoc> = {};
+  for (const doc of documents) {
+    urlToDoc[doc.url] = doc;
+  }
+
+  return narratives.map(nar => {
+    // Find which sources contribute claims to this narrative
+    const sourceUrls = new Set<string>();
+    for (const claim of nar.claims) {
+      const key = claim.toLowerCase().trim();
+      const srcs = claimToSources[key];
+      if (srcs) srcs.forEach(u => sourceUrls.add(u));
+    }
+
+    const sources = Array.from(sourceUrls).map(url => ({
+      title: urlToDoc[url]?.title || url,
+      url,
+    }));
+
+    // Credibility score heuristic:
+    // - More claims = higher density = more credible
+    // - More independent sources backing it = higher credibility
+    // - Single source = less credible
+    const claimDensity = Math.min(nar.claims.length / 3, 1); // normalized 0-1
+    const sourceMultiplier = Math.min(sources.length / 2, 1); // 2+ sources = full credit
+    const rawScore = Math.round((claimDensity * 60 + sourceMultiplier * 40));
+    const credibilityScore = Math.max(10, Math.min(95, rawScore));
+
+    let label: 'Highly Credible' | 'Contested' | 'Unverified';
+    if (credibilityScore >= 65) label = 'Highly Credible';
+    else if (credibilityScore >= 35) label = 'Contested';
+    else label = 'Unverified';
+
+    return { theme: nar.theme, claims: nar.claims, sources, credibilityScore, label };
+  });
+}
+
+function computeAlignmentScore(narrativeDisplays: NarrativeDisplay[]): number {
+  if (narrativeDisplays.length === 0) return 0;
+  // How much do sources overlap across narratives?
+  // High alignment = same sources appearing in multiple narratives
+  const allSourceUrls = new Set<string>();
+  let overlapCount = 0;
+  const seenInNarratives: Record<string, number> = {};
+
+  for (const nar of narrativeDisplays) {
+    for (const src of nar.sources) {
+      allSourceUrls.add(src.url);
+      seenInNarratives[src.url] = (seenInNarratives[src.url] || 0) + 1;
+    }
+  }
+
+  for (const count of Object.values(seenInNarratives)) {
+    if (count > 1) overlapCount++;
+  }
+
+  if (allSourceUrls.size === 0) return 0;
+  const ratio = overlapCount / allSourceUrls.size;
+  return Math.round(ratio * 100);
+}
+
+function computeOverallScore(narrativeDisplays: NarrativeDisplay[]): number {
+  if (narrativeDisplays.length === 0) return 0;
+  const avg = narrativeDisplays.reduce((sum, n) => sum + n.credibilityScore, 0) / narrativeDisplays.length;
+  return Math.round(avg);
+}
+
+const ScoreRing = ({ score, size = 160, label }: { score: number; size?: number; label: string }) => {
+  const color = score > 65 ? 'critical' : score > 35 ? 'warning' : 'safe';
   const circumference = 2 * Math.PI * 45;
   const offset = circumference - (score / 100) * circumference;
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative w-40 h-40">
+      <div className="relative" style={{ width: size, height: size }}>
         <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="45" fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
+          <circle cx="50" cy="50" r="45" fill="none" stroke="hsl(var(--muted))" strokeWidth="5" />
           <circle
             cx="50" cy="50" r="45" fill="none"
             stroke={`hsl(var(--${color}))`}
-            strokeWidth="6"
+            strokeWidth="5"
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
@@ -89,114 +135,171 @@ const ThreatScore = ({ score }: { score: number }) => {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`font-display text-4xl font-bold text-${color}`}>{score}</span>
-          <span className="font-body text-[10px] text-muted-foreground">/100</span>
+          <span className={`font-display text-3xl font-bold text-${color}`}>{score}</span>
+          <span className="font-body text-[9px] text-muted-foreground">/100</span>
         </div>
       </div>
-      <h3 className="font-body text-sm font-bold text-foreground mt-3">Misinformation Risk Score</h3>
-      <p className="font-body text-xs text-muted-foreground">Based on 47 findings across 10 agents</p>
+      <span className="font-body text-xs font-bold text-foreground mt-2">{label}</span>
     </div>
   );
 };
 
-const ResultsPage = ({ topic }: ResultsPageProps) => {
-  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
-  const [filter, setFilter] = useState('All');
-  const filters = ['All', 'Images', 'Language', 'Sources', 'Network', 'Social'];
+const CredibilityBadge = ({ label }: { label: 'Highly Credible' | 'Contested' | 'Unverified' }) => {
+  const styles = {
+    'Highly Credible': 'bg-critical/10 text-critical border-critical/20',
+    'Contested': 'bg-warning/10 text-warning border-warning/20',
+    'Unverified': 'bg-safe/10 text-safe border-safe/20',
+  };
+  return (
+    <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold font-body uppercase tracking-wider border ${styles[label]}`}>
+      {label}
+    </span>
+  );
+};
 
-  const filteredFindings = mockFindings.filter(f => {
-    if (filter === 'All') return true;
-    if (filter === 'Images') return ['pixel', 'reel'].includes(f.agentId);
-    if (filter === 'Language') return f.agentId === 'lingua';
-    if (filter === 'Sources') return ['scout', 'veritas'].includes(f.agentId);
-    if (filter === 'Network') return ['trace', 'ghost', 'spider'].includes(f.agentId);
-    if (filter === 'Social') return f.agentId === 'echo';
-    return true;
-  });
+const ResultsPage = ({ topic }: ResultsPageProps) => {
+  const [narrativeDisplays, setNarrativeDisplays] = useState<NarrativeDisplay[]>([]);
+  const [alignmentScore, setAlignmentScore] = useState(0);
+  const [overallScore, setOverallScore] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [docCount, setDocCount] = useState(0);
+  const [claimCount, setClaimCount] = useState(0);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchContext = useCallback(() => {
+    fetch(`${API_BASE}/context`)
+      .then(res => res.json())
+      .then((ctx) => {
+        const documents = (ctx.documents || []) as BackendDoc[];
+        const claimGroups = (ctx.claims || []) as BackendClaimGroup[];
+        const narratives = (ctx.narratives || []) as BackendNarrative[];
+
+        setDocCount(documents.length);
+        setClaimCount(claimGroups.reduce((sum, g) => sum + (g.claims?.length || 0), 0));
+
+        if (narratives.length > 0) {
+          const displays = computeNarratives(narratives, claimGroups, documents);
+          setNarrativeDisplays(displays);
+          setAlignmentScore(computeAlignmentScore(displays));
+          setOverallScore(computeOverallScore(displays));
+          setLoading(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchContext();
+    pollRef.current = setInterval(fetchContext, 2000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [fetchContext]);
+
+  useEffect(() => {
+    if (!loading && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, [loading]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-2 border-foreground/20 border-t-foreground rounded-full animate-spin mx-auto mb-4" />
+          <h2 className="font-display text-2xl font-bold text-foreground mb-2">Compiling Intelligence Report...</h2>
+          <p className="font-body text-sm text-muted-foreground">Waiting for narrative analysis to complete</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background" style={{ animation: 'fade-up 0.5s ease-out' }}>
+      <style>{`
+        @keyframes fade-up {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
       <div className="max-w-6xl mx-auto px-6 py-12">
         {/* Header */}
-        <div className="mb-12">
-          <h1 className="font-display text-4xl font-bold text-foreground mb-2">Investigation Results</h1>
+        <div className="mb-10">
+          <h1 className="font-display text-4xl font-bold text-foreground mb-2">Intelligence Report</h1>
           <p className="font-body text-muted-foreground">Subject: "{topic}"</p>
+          <p className="font-body text-xs text-muted-foreground mt-1">
+            {docCount} sources analyzed — {claimCount} claims extracted — {narrativeDisplays.length} narratives identified
+          </p>
         </div>
 
-        {/* Section 1: Threat Score */}
-        <section className="mb-16">
-          <ThreatScore score={73} />
+        {/* Top scores row */}
+        <section className="mb-14 flex flex-wrap items-center justify-center gap-12 py-8 border border-foreground/5 rounded-2xl bg-foreground/[0.02]">
+          <ScoreRing score={overallScore} label="Overall Credibility" />
+          <ScoreRing score={alignmentScore} size={120} label="Source Alignment" />
+          <div className="text-center max-w-[200px]">
+            <div className="font-display text-5xl font-bold text-foreground">{narrativeDisplays.length}</div>
+            <div className="font-body text-xs text-muted-foreground mt-1">Distinct Narratives</div>
+          </div>
+          <div className="text-center max-w-[200px]">
+            <div className="font-display text-5xl font-bold text-foreground">{docCount}</div>
+            <div className="font-body text-xs text-muted-foreground mt-1">Sources Scraped</div>
+          </div>
+        </section>
 
-          {/* Agent cards grid */}
-          <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-3">
-            {agents.map(agent => {
-              const color = agent.score > 70 ? 'critical' : agent.score > 30 ? 'warning' : 'safe';
-              const isExpanded = expandedAgent === agent.id;
+        {/* Narrative Columns */}
+        <section className="mb-14">
+          <h2 className="font-display text-2xl font-bold text-foreground mb-6">Narrative Breakdown</h2>
+          <div className="grid gap-5" style={{ gridTemplateColumns: `repeat(${Math.min(narrativeDisplays.length, 4)}, 1fr)` }}>
+            {narrativeDisplays.map((nar, i) => {
+              const color = nar.label === 'Highly Credible' ? 'critical' : nar.label === 'Contested' ? 'warning' : 'safe';
               return (
-                <button
-                  key={agent.id}
-                  onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
-                  className={`text-left p-3 rounded-lg border transition-all ${isExpanded ? `border-${color} bg-${color}/5` : 'border-foreground/5 bg-background hover:border-foreground/20'}`}
+                <div
+                  key={i}
+                  className="border border-foreground/10 rounded-xl bg-background overflow-hidden shadow-md hover:shadow-lg transition-shadow"
+                  style={{ animation: `fade-up 0.5s ease-out ${i * 0.1}s both` }}
                 >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-xs">🐾</span>
-                    <span className="font-body text-[11px] font-bold text-foreground">{agent.name}</span>
+                  {/* Narrative header */}
+                  <div className={`p-4 border-b border-foreground/5 bg-${color}/5`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <CredibilityBadge label={nar.label} />
+                      <span className={`font-display text-lg font-bold text-${color}`}>{nar.credibilityScore}%</span>
+                    </div>
+                    <h3 className="font-display text-sm font-bold text-foreground leading-tight">{nar.theme}</h3>
                   </div>
-                  <div className={`font-display text-xl font-bold text-${color}`}>{agent.score}</div>
-                  <div className="font-body text-[9px] text-muted-foreground">{agent.role}</div>
-                  {isExpanded && (
-                    <ul className="mt-2 space-y-1" style={{ animation: 'fade-up 0.3s ease-out' }}>
-                      {agent.findings.map((f, i) => (
-                        <li key={i} className="font-body text-[10px] text-muted-foreground">• {f}</li>
+
+                  {/* Claims */}
+                  <div className="p-4 border-b border-foreground/5">
+                    <div className="font-body text-[8px] uppercase tracking-widest text-muted-foreground font-bold mb-2">
+                      Claims ({nar.claims.length})
+                    </div>
+                    <ul className="space-y-2">
+                      {nar.claims.map((claim, ci) => (
+                        <li key={ci} className="flex gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-foreground/30 mt-1.5 flex-shrink-0" />
+                          <span className="font-body text-[11px] text-foreground/70 leading-tight">{claim}</span>
+                        </li>
                       ))}
                     </ul>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Section 2: World Map */}
-        <section className="mb-16">
-          <h2 className="font-display text-2xl font-bold text-foreground mb-6">Global Spread</h2>
-          <div className="border border-foreground/10 rounded-xl overflow-hidden">
-            <WorldMap />
-          </div>
-        </section>
-
-        {/* Section 3: Findings Explorer */}
-        <section>
-          <h2 className="font-display text-2xl font-bold text-foreground mb-4">Findings Explorer</h2>
-          <div className="flex gap-2 mb-6 flex-wrap">
-            {filters.map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-4 py-1.5 rounded-full font-body text-xs font-medium transition-colors ${
-                  filter === f ? 'bg-foreground text-primary-foreground' : 'bg-foreground/5 text-foreground hover:bg-foreground/10'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-          <div className="grid md:grid-cols-2 gap-3">
-            {filteredFindings.map(f => {
-              const severityColor = f.severity === 'critical' ? 'critical' : f.severity === 'high' ? 'warning' : f.severity === 'medium' ? 'warning' : 'safe';
-              return (
-                <div key={f.id} className="border border-foreground/5 rounded-lg p-4 hover:border-foreground/15 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-2 h-2 rounded-full bg-${severityColor}`} />
-                    <span className="font-body text-[11px] font-bold text-foreground">{f.agentName}</span>
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-body uppercase bg-${severityColor}/10 text-${severityColor}`}>
-                      {f.type}
-                    </span>
                   </div>
-                  <p className="font-body text-sm text-muted-foreground mb-2">{f.description}</p>
-                  <button className="font-body text-[11px] font-bold text-foreground hover:text-accent transition-colors">
-                    View Source →
-                  </button>
+
+                  {/* Contributing sources */}
+                  <div className="p-4">
+                    <div className="font-body text-[8px] uppercase tracking-widest text-muted-foreground font-bold mb-2">
+                      Sources ({nar.sources.length})
+                    </div>
+                    {nar.sources.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {nar.sources.map((src, si) => (
+                          <li key={si} className="flex items-start gap-2">
+                            <span className="font-body text-[10px] text-muted-foreground">#{si + 1}</span>
+                            <span className="font-body text-[10px] text-foreground/60 leading-tight line-clamp-2">{src.title}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="font-body text-[10px] text-muted-foreground italic">No direct source link found</p>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -204,9 +307,9 @@ const ResultsPage = ({ topic }: ResultsPageProps) => {
         </section>
 
         {/* Footer */}
-        <div className="mt-16 text-center">
+        <div className="mt-16 text-center pb-8">
           <p className="font-body text-xs text-muted-foreground tracking-widest uppercase">
-            Milou Intelligence Report • Generated by AI Agent Swarm
+            Milou Intelligence Report — Generated by AI Agent Swarm
           </p>
         </div>
       </div>

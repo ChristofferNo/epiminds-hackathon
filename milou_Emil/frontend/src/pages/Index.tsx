@@ -79,7 +79,7 @@ const Index = () => {
           </nav>
 
           {/* Page Container */}
-          <main className="flex-1 pt-14 relative overflow-hidden">
+          <main className="flex-1 pt-14 relative overflow-auto">
             {renderPage()}
           </main>
         </div>

@@ -4,8 +4,8 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from Backend.context import shared_context
-from Backend.agent_runner import run_agents
+from backend.context import shared_context
+from backend.agent_runner import run_agents
 from agents.scraper_agent import scraper_agent
 from agents.claim_agent import claim_agent
 from agents.narrative_agent import narrative_agent

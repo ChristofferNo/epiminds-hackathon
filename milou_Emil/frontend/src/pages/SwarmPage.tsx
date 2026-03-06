@@ -91,7 +91,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
 
   // Initialize positions at kennel then deploy
   useEffect(() => {
-    const kennelPos = { x: 25, y: 50 };
+    const kennelPos = { x: 50, y: 50 };
     const initial: Record<string, { x: number; y: number }> = {};
     agentStates.forEach(a => { initial[a.id] = { ...kennelPos }; });
     setAgentPositions(initial);
@@ -173,8 +173,8 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
         while (a2.id === a1.id) a2 = activeAgents[Math.floor(Math.random() * activeAgents.length)];
 
         const key = commKeyRef.current++;
-        const fromPos = agentPositions[a1.id] || { x: 25, y: 50 };
-        const toPos = agentPositions[a2.id] || { x: 25, y: 50 };
+        const fromPos = agentPositions[a1.id] || { x: 50, y: 50 };
+        const toPos = agentPositions[a2.id] || { x: 50, y: 50 };
 
         setCommLines(prev => [...prev, { from: a1.id, to: a2.id, key }]);
         setTraces(prev => [...prev, {
@@ -206,7 +206,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
     setAgentStates(prev => prev.map(a => a.id === id ? { ...a, active: !a.active } : a));
   }, []);
 
-  const getPos = (id: string) => agentPositions[id] || { x: 25, y: 50 };
+  const getPos = (id: string) => agentPositions[id] || { x: 50, y: 50 };
 
   return (
     <div className="fixed inset-0 bg-parchment-light flex overflow-hidden" style={{ animation: 'fade-up 0.4s ease-out' }}>
@@ -309,7 +309,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
         </svg>
 
         {/* Kennel / HQ */}
-        <div className="absolute" style={{ left: '25%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 2 }}>
+        <div className="absolute" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 2 }}>
           <svg width="60" height="50" viewBox="0 0 60 50">
             <polygon points="30,2 58,22 2,22" fill="hsl(var(--foreground))" />
             <rect x="8" y="22" width="44" height="26" fill="hsl(var(--foreground))" />
@@ -334,7 +334,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                 zIndex: 5,
               }}
             >
-              {agent.active && deployed && pos.x !== 25 && (
+              {agent.active && deployed && !(pos.x === 50 && pos.y === 50) && (
                 <>
                   <div className="absolute w-6 h-6 rounded-full border border-foreground/20" style={{ animation: 'pulse-ring 3s infinite' }} />
                   <div className="absolute w-6 h-6 rounded-full border border-foreground/10" style={{ animation: 'pulse-ring 3s infinite 1s' }} />
