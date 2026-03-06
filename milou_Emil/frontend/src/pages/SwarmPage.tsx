@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { agents as initialAgents, mockFindings, type Finding, type Agent } from '@/data/mockData';
+import { agents as initialAgents, type Finding, type Agent } from '@/data/mockData';
 
 interface SwarmPageProps {
   topic: string;
   onComplete: () => void;
 }
+
+const WS_URL = 'ws://localhost:8000/ws';
+const API_URL = 'http://localhost:8000';
 
 const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
   const [agentStates, setAgentStates] = useState<Agent[]>(initialAgents.map(a => ({ ...a, active: true })));
@@ -15,17 +18,80 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
   const [flashingAgents, setFlashingAgents] = useState<Set<string>>(new Set());
   const [showCompleteBtn, setShowCompleteBtn] = useState(false);
   const [deployed, setDeployed] = useState(false);
+  const [connected, setConnected] = useState(false);
   const commKeyRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  // Initialize positions at kennel
+  // Connect WebSocket and start investigation
+  useEffect(() => {
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setConnected(true);
+      console.log('[Milou] Connected to swarm backend');
+      // Start investigation immediately on connect
+      fetch(`${API_URL}/investigate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, depth: 'deep' })
+      });
+    };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === 'new_finding') {
+        const finding = msg.data;
+        // Normalize timestamp for display
+        finding.timestamp = 'just now';
+        setFindings(prev => [finding, ...prev]);
+        setFindingCount(prev => prev + 1);
+
+        // Flash the agent that found it
+        setFlashingAgents(prev => new Set(prev).add(finding.agentId));
+        setTimeout(() => {
+          setFlashingAgents(prev => {
+            const next = new Set(prev);
+            next.delete(finding.agentId);
+            return next;
+          });
+        }, 600);
+      }
+
+      if (msg.type === 'agent_killed') {
+        setAgentStates(prev => prev.map(a =>
+          a.id === msg.agent_id ? { ...a, active: false } : a
+        ));
+      }
+
+      if (msg.type === 'agent_score_update') {
+        setAgentStates(prev => prev.map(a =>
+          a.id === msg.agent_id ? { ...a, score: msg.score } : a
+        ));
+      }
+    };
+
+    ws.onclose = () => {
+      setConnected(false);
+      console.log('[Milou] Disconnected from backend');
+    };
+
+    return () => ws.close();
+  }, [topic]);
+
+  // Initialize agent positions at kennel, then deploy
   useEffect(() => {
     const kennelPos = { x: 25, y: 50 };
     const initial: Record<string, { x: number; y: number }> = {};
     agentStates.forEach(a => { initial[a.id] = { ...kennelPos }; });
     setAgentPositions(initial);
 
+<<<<<<< Updated upstream
     // Deploy after a brief moment
+=======
+>>>>>>> Stashed changes
     const t = setTimeout(() => {
       setDeployed(true);
       const deployed: Record<string, { x: number; y: number }> = {};
@@ -35,6 +101,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
     return () => clearTimeout(t);
   }, []);
 
+<<<<<<< Updated upstream
   // Findings feed
   useEffect(() => {
     if (!deployed) return;
@@ -61,6 +128,9 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
   }, [deployed]);
 
   // Communication lines
+=======
+  // Communication lines (visual only - shows agents talking)
+>>>>>>> Stashed changes
   useEffect(() => {
     if (!deployed) return;
     const interval = setInterval(() => {
@@ -78,15 +148,27 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
     return () => clearInterval(interval);
   }, [deployed, agentStates]);
 
-  // Show complete button after 15s
+  // Show complete button after 30s (agents need time to finish)
   useEffect(() => {
-    const t = setTimeout(() => setShowCompleteBtn(true), 15000);
+    const t = setTimeout(() => setShowCompleteBtn(true), 30000);
     return () => clearTimeout(t);
   }, []);
 
+  // Kill switch - tells backend to kill agent AND updates UI
   const toggleAgent = useCallback((id: string) => {
-    setAgentStates(prev => prev.map(a => a.id === id ? { ...a, active: !a.active } : a));
-  }, []);
+    const agent = agentStates.find(a => a.id === id);
+    if (!agent) return;
+
+    if (agent.active) {
+      // Kill the agent in backend
+      wsRef.current?.send(JSON.stringify({ type: 'kill_agent', agent_id: id }));
+      setAgentStates(prev => prev.map(a => a.id === id ? { ...a, active: false } : a));
+    } else {
+      // Revive
+      wsRef.current?.send(JSON.stringify({ type: 'revive_agent', agent_id: id }));
+      setAgentStates(prev => prev.map(a => a.id === id ? { ...a, active: true } : a));
+    }
+  }, [agentStates]);
 
   const getPos = (id: string) => agentPositions[id] || { x: 25, y: 50 };
 
@@ -97,7 +179,8 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
         <div className="flex items-center gap-2">
           <span className="font-body text-xs uppercase tracking-widest text-muted-foreground">Shared State:</span>
           <span className="font-body text-xs font-bold text-foreground">LIVE</span>
-          <span className="w-2 h-2 rounded-full bg-safe" style={{ animation: 'pulse-ring 2s infinite' }} />
+          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-safe' : 'bg-warning'}`} style={{ animation: 'pulse-ring 2s infinite' }} />
+          {!connected && <span className="font-body text-[10px] text-warning">connecting...</span>}
         </div>
         <div className="ml-8 font-body text-xs text-muted-foreground">
           Findings: <span className="font-bold text-foreground">{findingCount}</span>
@@ -110,7 +193,6 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
       {/* Main canvas */}
       <div ref={containerRef} className="flex-1 relative mt-12 mb-0">
         <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }}>
-          {/* Communication lines */}
           {commLines.map(line => {
             const from = getPos(line.from);
             const to = getPos(line.to);
@@ -154,13 +236,13 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
                 zIndex: 5,
               }}
             >
-              {/* Pulse rings */}
               {agent.active && deployed && pos.x !== 25 && (
                 <>
                   <div className="absolute w-6 h-6 rounded-full border border-foreground/20" style={{ animation: 'pulse-ring 3s infinite' }} />
                   <div className="absolute w-6 h-6 rounded-full border border-foreground/10" style={{ animation: 'pulse-ring 3s infinite 1s' }} />
                 </>
               )}
+<<<<<<< Updated upstream
 
               {/* Agent circle */}
               <div
@@ -171,20 +253,28 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
               </div>
 
               {/* Finding badge */}
+=======
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] transition-colors duration-300 ${
+                agent.active ? (isFlashing ? 'bg-critical' : 'bg-foreground') : 'bg-muted-foreground/40'
+              }`}>
+                <span className={agent.active ? 'text-primary-foreground' : 'text-muted'}>🐾</span>
+              </div>
+>>>>>>> Stashed changes
               {isFlashing && (
                 <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-critical text-critical-foreground text-[8px] flex items-center justify-center font-bold" style={{ animation: 'fade-up 0.3s ease-out' }}>
                   +1
                 </div>
               )}
+<<<<<<< Updated upstream
 
               {/* Label */}
+=======
+>>>>>>> Stashed changes
               <span className={`mt-1 font-body text-[10px] font-bold whitespace-nowrap ${!agent.active ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                 {agent.name}
               </span>
               <span className="font-body text-[8px] text-muted-foreground whitespace-nowrap">{agent.role}</span>
-              {!agent.active && (
-                <span className="text-[8px] text-warning font-bold mt-0.5">⚠ offline</span>
-              )}
+              {!agent.active && <span className="text-[8px] text-warning font-bold mt-0.5">⚠ offline</span>}
             </div>
           );
         })}
@@ -218,9 +308,9 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
           <span className="font-body text-[10px] text-muted-foreground">LIVE</span>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-2">
-          {findings.map((f) => (
+          {findings.map((f, idx) => (
             <div
-              key={f.id}
+              key={`${f.id}-${idx}`}
               className="bg-parchment-light/50 border border-foreground/5 rounded p-2"
               style={{ animation: 'slide-in-right 0.4s ease-out' }}
             >
@@ -238,7 +328,7 @@ const SwarmPage = ({ topic, onComplete }: SwarmPageProps) => {
           ))}
           {findings.length === 0 && (
             <div className="text-center py-8 text-muted-foreground font-body text-xs">
-              Deploying agents...
+              {connected ? 'Agents deployed, sniffing...' : 'Connecting to swarm...'}
             </div>
           )}
         </div>

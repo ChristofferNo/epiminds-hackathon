@@ -6,8 +6,12 @@ Run with: uvicorn main:app --reload --port 8000
 """
 
 import asyncio
+from dotenv import load_dotenv
+load_dotenv()
 import json
 import uuid
+from dotenv import load_dotenv
+load_dotenv()
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware

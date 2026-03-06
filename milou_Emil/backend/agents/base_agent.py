@@ -21,7 +21,7 @@ class BaseAgent:
         self.agent_id = agent_id
         self.shared_state = shared_state
         self.broadcast = broadcast_fn
-        self.model = "gemini-2.0-flash"
+        self.model = "gemini-2.5-flash"
 
     async def run(self, topic: str, depth: str = "deep"):
         """
@@ -118,7 +118,7 @@ class BaseAgent:
             ],
             "generationConfig": {
                 "temperature": 0.3,
-                "maxOutputTokens": 800,
+                "maxOutputTokens": 1500,
             }
         }
 
@@ -130,7 +130,13 @@ class BaseAgent:
                         print(f"[{self.agent_id}] Gemini error {resp.status}: {error_text[:200]}")
                         return self._mock_llm_response()
                     data = await resp.json()
-                    return data["candidates"][0]["content"]["parts"][0]["text"]
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    if "```" in text:
+                        text = text.split("```")[1]
+                        if text.startswith("json"):
+                            text = text[4:]
+                        text = text.split("```")[0]
+                    return text.strip()
         except Exception as e:
             print(f"[{self.agent_id}] LLM call failed: {e}")
             return self._mock_llm_response()

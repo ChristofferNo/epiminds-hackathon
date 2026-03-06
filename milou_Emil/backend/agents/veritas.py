@@ -11,7 +11,7 @@ Look for: non-existent experts, circular citations, sources that don't say what'
 
 Respond ONLY with a JSON array:
 [{"type": "TYPE IN CAPS", "description": "specific finding", "severity": "low|medium|high|critical", "region": null}]
-3-4 findings max. ONLY JSON."""
+3-4 findings max. ONLY JSON. Respond with SHORT descriptions, max 80 characters per description field."""
 
 class VeritasAgent(BaseAgent):
     async def analyze(self, topic: str, depth: str) -> list[dict]:
