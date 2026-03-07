@@ -34,7 +34,7 @@ const LandingPage = ({ onSearch }: LandingPageProps) => {
           type="text"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="Enter a topic... e.g. 'War in Iran' or 'Election 2025'"
+          placeholder="Enter a topic... e.g. 'Epiminds' or 'Electrification Sweden'"
           className="w-full max-w-[600px] px-6 py-4 rounded-full border-2 border-foreground bg-background text-foreground font-body text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent mb-6"
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit('deep')}
         />
