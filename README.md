@@ -23,13 +23,21 @@ The system is engineered around a **Decentralized Blackboard Architecture**: age
 
 ## Demo
 
-| Prompt | Swarm Activity | Intelligence Report | Evidence Board |
-|---|---|---|---|
-| ![Prompt Page](Figures/Milou_promptPage.png) | ![Swarm](Figures/Milou_Swarm_4.png) | ![Report](Figures/Milou_IntelligenceRep1.png) | ![Evidence Board](Figures/Milou_EvidenceBoard.png) |
-
-| Live Swarm (10 agents) | Report — Extended View |
+| Prompt | Swarm Activity |
 |---|---|
-| ![Swarm Full](Figures/Milou_Swarm_10.png) | ![Report Scroll](Figures/Milou_IntelligenceRep_Scroll_down.png) |
+| ![Prompt Page](Figures/Milou_promptPage.png) | ![Swarm](Figures/Milou_Swarm_4.png) |
+
+| Intelligence Report | Evidence Board |
+|---|---|
+| ![Report](Figures/Milou_IntelligenceRep1.png) | ![Evidence Board](Figures/Milou_EvidenceBoard.png) |
+
+| Live Swarm (10 agents) |
+|---|
+| ![Swarm Full](Figures/Milou_Swarm_10.png) |
+
+| Report — Extended View |
+|---|
+| ![Report Scroll](Figures/Milou_IntelligenceRep_Scroll_down.png) |
 
 ---
 
